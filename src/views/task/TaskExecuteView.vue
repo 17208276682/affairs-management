@@ -246,6 +246,8 @@ onMounted(() => {
 .task-execute {
   max-width: 1200px;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .page-nav {

@@ -174,8 +174,9 @@ const currentRouteTitle = computed(() => {
 const isOrgPage = computed(() => route.path.startsWith('/org/'))
 
 onMounted(async () => {
-  if (userStore.isLoggedIn && !userStore.userInfo) {
-    await userStore.getUserInfo()
+  // userInfo 已由路由守卫保证加载完成，这里只拉取通知
+  if (userStore.isLoggedIn) {
+    notificationStore.fetchNotifications()
   }
 })
 
@@ -309,6 +310,14 @@ function handleUserCommand(cmd: string) {
   background: $bg-page;
   overflow: hidden;
   padding: $spacing-lg;
+  display: flex;
+  flex-direction: column;
+
+  // 让 router-view 的根组件自动填满
+  > * {
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 // 通知面板

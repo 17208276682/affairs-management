@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.RecordAttachmentMapper">
+
+    <insert id="insert">
+        INSERT INTO record_attachments (record_id, attachment_id)
+        VALUES (#{recordId}, #{attachmentId})
+    </insert>
+
+    <insert id="batchInsert">
+        INSERT INTO record_attachments (record_id, attachment_id)
+        VALUES
+        <foreach collection="attachmentIds" item="aid" separator=",">
+            (#{recordId}, #{aid})
+        </foreach>
+    </insert>
+
+    <select id="selectAttachmentIdsByRecordId" resultType="string">
+        SELECT attachment_id FROM record_attachments WHERE record_id = #{recordId}
+    </select>
+</mapper>

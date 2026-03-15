@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.UserManagedDeptMapper">
+
+    <select id="selectDeptIdsByUserId" resultType="string">
+        SELECT dept_id FROM user_managed_departments WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectUserIdsByDeptId" resultType="string">
+        SELECT user_id FROM user_managed_departments WHERE dept_id = #{deptId}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO user_managed_departments (user_id, dept_id)
+        VALUES (#{userId}, #{deptId})
+    </insert>
+
+    <delete id="deleteByUserId">
+        DELETE FROM user_managed_departments WHERE user_id = #{userId}
+    </delete>
+
+    <delete id="deleteByDeptId">
+        DELETE FROM user_managed_departments WHERE dept_id = #{deptId}
+    </delete>
+
+    <insert id="batchInsert">
+        INSERT INTO user_managed_departments (user_id, dept_id)
+        VALUES
+        <foreach collection="deptIds" item="deptId" separator=",">
+            (#{userId}, #{deptId})
+        </foreach>
+    </insert>
+</mapper>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.AttachmentMapper">
+
+    <resultMap id="AttachmentResultMap" type="com.affairs.management.entity.Attachment">
+        <id property="id" column="id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="fileUrl" column="file_url"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="mimeType" column="mime_type"/>
+        <result property="uploadedBy" column="uploaded_by"/>
+        <result property="uploadedAt" column="uploaded_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO attachments (id, file_name, file_url, file_size, mime_type, uploaded_by)
+        VALUES (#{id}, #{fileName}, #{fileUrl}, #{fileSize}, #{mimeType}, #{uploadedBy})
+    </insert>
+
+    <select id="selectById" resultMap="AttachmentResultMap">
+        SELECT * FROM attachments WHERE id = #{id}
+    </select>
+
+    <select id="selectByIds" resultMap="AttachmentResultMap">
+        SELECT * FROM attachments WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="selectByTaskId" resultMap="AttachmentResultMap">
+        SELECT a.* FROM attachments a
+        INNER JOIN task_attachments ta ON a.id = ta.attachment_id
+        WHERE ta.task_id = #{taskId}
+        ORDER BY a.uploaded_at
+    </select>
+
+    <select id="selectByRecordId" resultMap="AttachmentResultMap">
+        SELECT a.* FROM attachments a
+        INNER JOIN record_attachments ra ON a.id = ra.attachment_id
+        WHERE ra.record_id = #{recordId}
+        ORDER BY a.uploaded_at
+    </select>
+
+    <select id="selectMaxId" resultType="string">
+        SELECT MAX(id) FROM attachments
+    </select>
+</mapper>

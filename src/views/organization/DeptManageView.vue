@@ -15,7 +15,7 @@
           </template>
           <el-tree
             :data="orgStore.orgTree"
-            :props="{ label: 'name', children: 'children' }"
+            :props="{ label: 'label', children: 'children' }"
             node-key="id"
             default-expand-all
             highlight-current
@@ -216,7 +216,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .dept-manage {
-  height: calc(100vh - 112px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -1,15 +1,11 @@
 // ============================================
-// Axios 请求封装（含 Mock 拦截）
+// Axios 请求封装
 // ============================================
 import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from '@/utils/auth'
-import { handleMockRequest } from '@/mock'
 import type { ApiResponse } from '@/types'
-
-// 是否使用 Mock
-const USE_MOCK = true
 
 const service = axios.create({
   baseURL: '/api',
@@ -23,15 +19,6 @@ service.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-
-    // Mock 模式：使用自定义 adapter
-    if (USE_MOCK) {
-      config.adapter = async (cfg: AxiosRequestConfig) => {
-        const result = await handleMockRequest(cfg)
-        return { data: result, status: 200, statusText: 'OK', headers: {}, config: cfg } as any
-      }
-    }
-
     return config
   },
   (error) => Promise.reject(error)

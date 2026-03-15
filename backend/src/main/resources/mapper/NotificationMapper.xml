@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.NotificationMapper">
+
+    <resultMap id="NotificationResultMap" type="com.affairs.management.entity.Notification">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="type" column="type"/>
+        <result property="relatedTaskId" column="related_task_id"/>
+        <result property="isRead" column="is_read"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO notifications (id, user_id, title, content, type, related_task_id, is_read)
+        VALUES (#{id}, #{userId}, #{title}, #{content}, #{type}, #{relatedTaskId}, #{isRead})
+    </insert>
+
+    <select id="selectByUserId" resultMap="NotificationResultMap">
+        SELECT * FROM notifications
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+    </select>
+
+    <update id="markAsRead">
+        UPDATE notifications SET is_read = 1 WHERE id = #{id}
+    </update>
+
+    <update id="markAllAsRead">
+        UPDATE notifications SET is_read = 1 WHERE user_id = #{userId} AND is_read = 0
+    </update>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*) FROM notifications WHERE user_id = #{userId} AND is_read = 0
+    </select>
+
+    <select id="selectMaxId" resultType="string">
+        SELECT MAX(id) FROM notifications
+    </select>
+</mapper>

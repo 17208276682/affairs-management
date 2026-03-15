@@ -481,12 +481,11 @@ const pieOption = computed<EChartsOption>(() => ({
   ],
 }))
 
-const barSource = computed(() => ([
-  { label: '技术研发部', total: 38, completed: 29 },
-  { label: '财务部', total: 22, completed: 19 },
-  { label: '人力资源部', total: 16, completed: 12 },
-  { label: '总经办', total: 12, completed: 9 },
-]))
+const barSource = computed(() => deptStats.value.map(d => ({
+  label: d.deptName,
+  total: d.total,
+  completed: d.completed,
+})))
 
 const barOption = computed<EChartsOption>(() => ({
   grid: { top: 20, right: 16, bottom: 6, left: 12, containLabel: true },
@@ -793,7 +792,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 680px;
+  overflow-y: auto;
 }
 
 .dashboard-header {
@@ -861,11 +860,11 @@ onBeforeUnmount(() => {
 
 .left-panel__inner {
   display: grid;
-  grid-template-rows: 112px minmax(0, 1fr) minmax(190px, 0.9fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 0.9fr);
   gap: 12px;
 
   &.no-stats {
-    grid-template-rows: 112px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }
 

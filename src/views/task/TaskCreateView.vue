@@ -218,6 +218,8 @@ onMounted(() => {
 .task-create {
   max-width: 720px;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .form-card {

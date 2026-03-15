@@ -1266,6 +1266,11 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .task-list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
   .page-header {
     display: flex;
     justify-content: flex-start;
@@ -1304,8 +1309,8 @@ onMounted(() => {
 .split-layout {
   display: flex;
   gap: $spacing-md;
-  height: calc(100vh - 220px);
-  min-height: 500px;
+  flex: 1;
+  min-height: 0;
 }
 
 .list-card {

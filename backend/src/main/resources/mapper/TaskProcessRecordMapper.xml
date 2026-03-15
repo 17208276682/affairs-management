@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.TaskProcessRecordMapper">
+
+    <resultMap id="RecordResultMap" type="com.affairs.management.entity.TaskProcessRecord">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="action" column="action"/>
+        <result property="content" column="content"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO task_process_records (id, task_id, operator_id, action, content)
+        VALUES (#{id}, #{taskId}, #{operatorId}, #{action}, #{content})
+    </insert>
+
+    <select id="selectByTaskId" resultMap="RecordResultMap">
+        SELECT * FROM task_process_records
+        WHERE task_id = #{taskId}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectRecent" resultMap="RecordResultMap">
+        SELECT r.* FROM task_process_records r
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND r.operator_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+                    #{uid}
+                </foreach>
+            </if>
+        </where>
+        ORDER BY r.created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectMaxId" resultType="string">
+        SELECT MAX(id) FROM task_process_records
+    </select>
+</mapper>

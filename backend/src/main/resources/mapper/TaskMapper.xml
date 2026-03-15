@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.TaskMapper">
+
+    <resultMap id="TaskResultMap" type="com.affairs.management.entity.Task">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="assignerId" column="assigner_id"/>
+        <result property="executorId" column="executor_id"/>
+        <result property="importance" column="importance"/>
+        <result property="urgency" column="urgency"/>
+        <result property="level" column="level"/>
+        <result property="responseDeadline" column="response_deadline"/>
+        <result property="completionDeadline" column="completion_deadline"/>
+        <result property="responseTime" column="response_time"/>
+        <result property="completionTime" column="completion_time"/>
+        <result property="status" column="status"/>
+        <result property="parentTaskId" column="parent_task_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="TaskResultMap">
+        SELECT * FROM tasks WHERE id = #{id}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO tasks (id, title, description, assigner_id, executor_id,
+                           importance, urgency, level, response_deadline, completion_deadline,
+                           response_time, completion_time, status, parent_task_id)
+        VALUES (#{id}, #{title}, #{description}, #{assignerId}, #{executorId},
+                #{importance}, #{urgency}, #{level}, #{responseDeadline}, #{completionDeadline},
+                #{responseTime}, #{completionTime}, #{status}, #{parentTaskId})
+    </insert>
+
+    <update id="update">
+        UPDATE tasks
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="executorId != null">executor_id = #{executorId},</if>
+            <if test="importance != null">importance = #{importance},</if>
+            <if test="urgency != null">urgency = #{urgency},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="responseDeadline != null">response_deadline = #{responseDeadline},</if>
+            <if test="completionDeadline != null">completion_deadline = #{completionDeadline},</if>
+            <if test="responseTime != null">response_time = #{responseTime},</if>
+            <if test="completionTime != null">completion_time = #{completionTime},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="parentTaskId != null">parent_task_id = #{parentTaskId},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 复杂的动态事务列表查询 -->
+    <sql id="taskListCondition">
+        <where>
+            <!-- assigned: 我下达的（根任务） -->
+            <if test="type == 'assigned'">
+                AND t.assigner_id = #{currentUserId}
+                AND t.parent_task_id IS NULL
+            </if>
+
+            <!-- todo: 我的待办 -->
+            <if test="type == 'todo'">
+                <choose>
+                    <when test="role == 'director'">
+                        AND t.assigner_id = #{currentUserId}
+                        AND t.status = 'submitted'
+                    </when>
+                    <when test="role == 'manager'">
+                        AND (
+                            (t.executor_id = #{currentUserId}
+                             AND t.status IN ('pending', 'accepted', 'in_progress', 'rejected'))
+                            OR
+                            (t.assigner_id = #{currentUserId}
+                             AND t.status = 'submitted')
+                        )
+                    </when>
+                    <otherwise>
+                        AND t.executor_id = #{currentUserId}
+                        AND t.status IN ('pending', 'accepted', 'in_progress', 'rejected')
+                    </otherwise>
+                </choose>
+            </if>
+
+            <!-- scope: 事务列表（按权限范围） -->
+            <if test="type == 'scope'">
+                <choose>
+                    <when test="role == 'director' or role == 'manager'">
+                        <if test="managedUserIds != null and managedUserIds.size() > 0">
+                            AND (
+                                t.assigner_id IN
+                                <foreach collection="managedUserIds" item="uid" open="(" separator="," close=")">
+                                    #{uid}
+                                </foreach>
+                                <if test="role == 'manager'">
+                                    OR t.executor_id = #{currentUserId}
+                                </if>
+                            )
+                        </if>
+                        AND t.parent_task_id IS NULL
+                    </when>
+                    <otherwise>
+                        AND t.executor_id = #{currentUserId}
+                    </otherwise>
+                </choose>
+            </if>
+
+            <!-- received: 我执行的 -->
+            <if test="type == 'received'">
+                AND t.executor_id = #{currentUserId}
+            </if>
+
+            <!-- all: 全部（仅总经办/经理） -->
+            <if test="type == 'all'">
+                <!-- no additional filter -->
+            </if>
+
+            <!-- 通用筛选条件 -->
+            <if test="status != null and status != ''">
+                <choose>
+                    <when test="status == 'completed'">
+                        AND t.status IN ('approved', 'completed')
+                    </when>
+                    <when test="status == 'incomplete'">
+                        AND t.status NOT IN ('approved', 'completed', 'cancelled')
+                    </when>
+                    <when test="status == 'overdue'">
+                        AND (t.status = 'overdue'
+                             OR (t.completion_deadline &lt; NOW()
+                                 AND t.status NOT IN ('approved', 'completed', 'cancelled')))
+                    </when>
+                    <otherwise>
+                        AND t.status = #{status}
+                    </otherwise>
+                </choose>
+            </if>
+            <if test="level != null and level != ''">
+                AND t.level = #{level}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (t.title LIKE CONCAT('%', #{keyword}, '%')
+                     OR t.description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectTaskList" resultMap="TaskResultMap">
+        SELECT t.* FROM tasks t
+        <include refid="taskListCondition"/>
+        ORDER BY
+            FIELD(t.level, 'A', 'B', 'C', 'D'),
+            t.completion_deadline ASC,
+            t.created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countTaskList" resultType="long">
+        SELECT COUNT(*) FROM tasks t
+        <include refid="taskListCondition"/>
+    </select>
+
+    <select id="selectChildTaskIds" resultType="string">
+        SELECT id FROM tasks WHERE parent_task_id = #{parentTaskId}
+    </select>
+
+    <select id="selectMaxIdByDate" resultType="string">
+        SELECT MAX(id) FROM tasks WHERE id LIKE CONCAT(#{datePrefix}, '%')
+    </select>
+
+    <select id="selectMaxId" resultType="string">
+        SELECT MAX(id) FROM tasks
+    </select>
+
+    <update id="batchUpdateStatus">
+        UPDATE tasks SET status = #{status}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 递归查询所有子孙任务ID -->
+    <select id="selectAllDescendantIds" resultType="string">
+        WITH RECURSIVE task_tree AS (
+            SELECT id FROM tasks WHERE parent_task_id = #{parentTaskId}
+            UNION ALL
+            SELECT t.id FROM tasks t
+            INNER JOIN task_tree tt ON t.parent_task_id = tt.id
+        )
+        SELECT id FROM task_tree
+    </select>
+
+    <!-- 统计概览 -->
+    <select id="selectStatsOverview" resultType="map">
+        SELECT
+            COUNT(*) AS totalTasks,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingTasks,
+            SUM(CASE WHEN status IN ('accepted', 'in_progress', 'submitted') THEN 1 ELSE 0 END) AS inProgressTasks,
+            SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completedTasks,
+            SUM(CASE WHEN status = 'overdue'
+                      OR (completion_deadline &lt; NOW()
+                          AND status NOT IN ('approved', 'completed', 'cancelled'))
+                 THEN 1 ELSE 0 END) AS overdueTasks,
+            AVG(CASE WHEN response_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, created_at, response_time) / 60.0
+                     ELSE NULL END) AS avgResponseHours,
+            AVG(CASE WHEN completion_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, created_at, completion_time) / 60.0
+                     ELSE NULL END) AS avgCompletionHours
+        FROM tasks
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND (assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+    </select>
+
+    <!-- 按部门统计 -->
+    <select id="selectStatsByDept" resultType="com.affairs.management.dto.response.DeptStats">
+        SELECT
+            d.id AS deptId,
+            d.name AS deptName,
+            d.level AS level,
+            COUNT(t.id) AS total,
+            SUM(CASE WHEN t.status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN t.status = 'overdue'
+                      OR (t.completion_deadline &lt; NOW()
+                          AND t.status NOT IN ('approved', 'completed', 'cancelled'))
+                 THEN 1 ELSE 0 END) AS overdue,
+            AVG(CASE WHEN t.completion_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.completion_time) / 60.0
+                     ELSE NULL END) AS avgHours
+        FROM tasks t
+        INNER JOIN users u ON t.executor_id = u.id
+        INNER JOIN departments d ON u.dept_id = d.id
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND (t.assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR t.executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+        GROUP BY d.id, d.name, d.level
+        ORDER BY total DESC
+    </select>
+
+    <!-- 按级别统计 -->
+    <select id="selectStatsByLevel" resultType="com.affairs.management.dto.response.LevelStats">
+        SELECT
+            level,
+            COUNT(*) AS total,
+            SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completed,
+            AVG(CASE WHEN completion_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, created_at, completion_time) / 60.0
+                     ELSE NULL END) AS avgHours
+        FROM tasks
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND (assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+        GROUP BY level
+        ORDER BY FIELD(level, 'A', 'B', 'C', 'D')
+    </select>
+
+    <!-- 按个人统计 -->
+    <select id="selectStatsByPerson" resultType="com.affairs.management.dto.response.PersonStats">
+        SELECT
+            u.id AS userId,
+            u.name AS name,
+            u.dept_id AS deptId,
+            d.name AS deptName,
+            COUNT(t.id) AS totalTasks,
+            SUM(CASE WHEN t.status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completedTasks,
+            SUM(CASE WHEN t.status = 'overdue'
+                      OR (t.completion_deadline &lt; NOW()
+                          AND t.status NOT IN ('approved', 'completed', 'cancelled'))
+                 THEN 1 ELSE 0 END) AS overdueTasks,
+            AVG(CASE WHEN t.response_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.response_time) / 60.0
+                     ELSE NULL END) AS avgResponseHours,
+            AVG(CASE WHEN t.completion_time IS NOT NULL
+                     THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.completion_time) / 60.0
+                     ELSE NULL END) AS avgCompletionHours
+        FROM tasks t
+        INNER JOIN users u ON t.executor_id = u.id
+        LEFT JOIN departments d ON u.dept_id = d.id
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND (t.assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR t.executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+        GROUP BY u.id, u.name, u.dept_id, d.name
+        ORDER BY totalTasks DESC
+    </select>
+
+    <!-- 趋势统计 -->
+    <select id="selectTrend" resultType="map">
+        SELECT
+            DATE(created_at) AS date,
+            COUNT(*) AS created,
+            SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completed
+        FROM tasks
+        <where>
+            AND created_at BETWEEN #{startDate} AND #{endDate}
+            <if test="userIds != null and userIds.size() > 0">
+                AND (assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+        GROUP BY DATE(created_at)
+        ORDER BY date
+    </select>
+</mapper>

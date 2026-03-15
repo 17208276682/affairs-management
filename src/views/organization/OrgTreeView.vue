@@ -4,7 +4,7 @@
       <h3>组织架构</h3>
     </div>
 
-    <el-row :gutter="20">
+    <el-row :gutter="20" class="content-row">
       <!-- 左侧树形图 -->
       <el-col :span="10">
         <el-card v-loading="treeLoading" class="tree-card">
@@ -20,7 +20,7 @@
           <el-tree
             ref="treeRef"
             :data="orgStore.orgTree"
-            :props="{ label: 'name', children: 'children' }"
+            :props="{ label: 'label', children: 'children' }"
             node-key="id"
             default-expand-all
             highlight-current
@@ -164,8 +164,8 @@ import type { FormInstance } from 'element-plus'
 import { useOrganizationStore } from '@/stores'
 import { ROLE_MAP } from '@/utils/constants'
 import { deptFormRules } from '@/utils/validate'
-import type { Department, OrgTreeNode } from '@/types'
-import { mockUsers } from '@/mock/data'
+import type { Department, OrgTreeNode, User } from '@/types'
+import { getMemberListApi } from '@/api/organization'
 
 const orgStore = useOrganizationStore()
 
@@ -196,10 +196,16 @@ const memberForm = ref({
 
 const deptFormTitle = computed(() => deptForm.value.id ? '编辑部门' : '新增部门')
 
-const deptMembers = computed(() => {
-  if (!selectedDept.value) return []
-  return mockUsers.filter(u => u.deptId === selectedDept.value.id)
-})
+const deptMembers = ref<User[]>([])
+
+async function fetchDeptMembers(deptId: string) {
+  try {
+    const res = await getMemberListApi({ deptId, page: 1, pageSize: 100 })
+    deptMembers.value = res.data.list
+  } catch {
+    deptMembers.value = []
+  }
+}
 
 watch(filterText, (val) => {
   treeRef.value?.filter(val)
@@ -212,6 +218,9 @@ function filterNode(value: string, data: any) {
 
 function handleNodeClick(data: OrgTreeNode) {
   selectedDept.value = data
+  if (data.type === 'dept') {
+    fetchDeptMembers(data.id)
+  }
 }
 
 function handleAddRoot() {
@@ -278,6 +287,11 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .org-tree-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
   .page-header {
     margin-bottom: $spacing-md;
     h3 {
@@ -288,7 +302,18 @@ onMounted(async () => {
   }
 }
 
+.content-row {
+  flex: 1;
+  min-height: 0;
+}
+
 .tree-card {
+  height: 100%;
+  :deep(.el-card__body) {
+    height: calc(100% - 56px);
+    overflow: auto;
+  }
+
   .card-header {
     display: flex;
     justify-content: space-between;
@@ -327,6 +352,12 @@ onMounted(async () => {
 }
 
 .detail-card {
+  height: 100%;
+  :deep(.el-card__body) {
+    height: calc(100% - 2px);
+    overflow: auto;
+  }
+
   .section-title {
     font-weight: 600;
     font-size: $font-size-md;

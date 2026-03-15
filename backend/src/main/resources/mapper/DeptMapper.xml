@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.affairs.management.mapper.DeptMapper">
+
+    <resultMap id="DeptResultMap" type="com.affairs.management.entity.Department">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="leaderId" column="leader_id"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="level" column="level"/>
+        <result property="memberCount" column="member_count"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="DeptResultMap">
+        SELECT * FROM departments WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="DeptResultMap">
+        SELECT * FROM departments ORDER BY sort_order, created_at
+    </select>
+
+    <select id="selectByParentId" resultMap="DeptResultMap">
+        SELECT * FROM departments
+        <where>
+            <choose>
+                <when test="parentId != null">
+                    parent_id = #{parentId}
+                </when>
+                <otherwise>
+                    parent_id IS NULL
+                </otherwise>
+            </choose>
+        </where>
+        ORDER BY sort_order, created_at
+    </select>
+
+    <select id="selectChildren" resultMap="DeptResultMap">
+        SELECT * FROM departments WHERE parent_id = #{parentId}
+        ORDER BY sort_order, created_at
+    </select>
+
+    <insert id="insert">
+        INSERT INTO departments (id, name, parent_id, leader_id, sort_order, level, member_count, status)
+        VALUES (#{id}, #{name}, #{parentId}, #{leaderId}, #{sortOrder}, #{level}, #{memberCount}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE departments
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="leaderId != null">leader_id = #{leaderId},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="memberCount != null">member_count = #{memberCount},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM departments WHERE id = #{id}
+    </delete>
+
+    <select id="selectByNameAndParentId" resultMap="DeptResultMap">
+        SELECT * FROM departments
+        WHERE name = #{name}
+        <choose>
+            <when test="parentId != null">
+                AND parent_id = #{parentId}
+            </when>
+            <otherwise>
+                AND parent_id IS NULL
+            </otherwise>
+        </choose>
+        <if test="excludeId != null and excludeId != ''">
+            AND id != #{excludeId}
+        </if>
+        LIMIT 1
+    </select>
+
+    <select id="selectMaxId" resultType="string">
+        SELECT MAX(id) FROM departments
+    </select>
+
+    <update id="updateMemberCount">
+        UPDATE departments SET member_count = #{count} WHERE id = #{id}
+    </update>
+
+    <!-- 递归查询所有子部门ID (MySQL 8.x CTE) -->
+    <select id="selectAllChildIds" resultType="string">
+        WITH RECURSIVE dept_tree AS (
+            SELECT id FROM departments WHERE parent_id = #{parentId}
+            UNION ALL
+            SELECT d.id FROM departments d
+            INNER JOIN dept_tree dt ON d.parent_id = dt.id
+        )
+        SELECT id FROM dept_tree
+    </select>
+</mapper>

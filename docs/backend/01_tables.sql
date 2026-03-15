@@ -1,6 +1,6 @@
 -- 事务管理系统 - 后端数据表定义（MySQL 8.x）
 -- 说明：当前文件仅包含“表与字段”，用于后端初始化第一步。
-
+CREATE DATABASE IF NOT EXISTS affairs_management DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS departments (

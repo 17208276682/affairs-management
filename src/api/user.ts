@@ -19,7 +19,12 @@ export function updateProfileApi(data: Partial<User>) {
   return put<User>('/user/profile', data)
 }
 
-/** 手机号重置密码 */
+/** 手机号重置密码（登录页） */
 export function resetPasswordApi(data: { phone: string; newPassword: string }) {
   return post<boolean>('/auth/reset-password', data)
+}
+
+/** 修改密码（已登录用户） */
+export function changePasswordApi(data: { oldPassword: string; newPassword: string }) {
+  return post<boolean>('/auth/change-password', data)
 }

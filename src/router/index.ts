@@ -107,7 +107,7 @@ function resolvePageTitle(path: string, fallback: string) {
   return fallback
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   NProgress.start()
   const title = resolvePageTitle(to.path, String(to.meta.title || '中小企业事务管理数智化系统'))
   document.title = `${title} - TM System`
@@ -123,8 +123,20 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  // 角色重定向逻辑
+  // 确保用户信息已加载（仅拉取一次）
   const userStore = useUserStore()
+  if (!userStore.userInfo) {
+    try {
+      await userStore.getUserInfo()
+    } catch {
+      // token 无效，跳转登录
+      userStore.logout()
+      next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
+
+  // 角色重定向逻辑
   const role = userStore.userInfo?.role
 
   if (role === 'admin') {

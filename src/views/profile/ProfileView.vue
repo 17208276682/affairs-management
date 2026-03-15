@@ -85,6 +85,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores'
+import { changePasswordApi } from '@/api/user'
 
 const userStore = useUserStore()
 const activeTab = ref('info')
@@ -107,9 +108,14 @@ async function handleChangePwd() {
   }
   changingPwd.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 300))
-    ElMessage.success('密码修改成功（Mock）')
+    await changePasswordApi({
+      oldPassword: pwdForm.value.oldPassword,
+      newPassword: pwdForm.value.newPassword,
+    })
+    ElMessage.success('密码修改成功')
     pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+  } catch {
+    // 错误由响应拦截器统一处理
   } finally {
     changingPwd.value = false
   }
