@@ -1,0 +1,133 @@
+@use './variables' as *;
+
+// ============================================
+// Element Plus 样式覆盖 - 匹配现代扁平风设计体系
+// ============================================
+
+// ---------- 按钮 ----------
+.el-button--primary {
+  --el-button-bg-color: #{$primary};
+  --el-button-border-color: #{$primary};
+  --el-button-hover-bg-color: #{$primary-hover};
+  --el-button-hover-border-color: #{$primary-hover};
+  --el-button-active-bg-color: #{$primary-dark};
+  --el-button-active-border-color: #{$primary-dark};
+  border-radius: $radius-sm;
+}
+
+.el-button {
+  border-radius: $radius-sm;
+  font-weight: 500;
+}
+
+// ---------- 输入框 ----------
+.el-input__wrapper {
+  border-radius: $radius-sm;
+  box-shadow: 0 0 0 1px $border-light inset;
+  &:hover {
+    box-shadow: 0 0 0 1px $primary inset;
+  }
+  &.is-focus {
+    box-shadow: 0 0 0 1px $primary inset !important;
+  }
+}
+
+// ---------- 卡片 ----------
+.el-card {
+  border-radius: $radius-md;
+  border: none;
+  box-shadow: $shadow-card;
+  &:hover {
+    box-shadow: $shadow-hover;
+  }
+}
+
+// ---------- 表格 ----------
+.el-table {
+  --el-table-border-color: #{$border-lighter};
+  --el-table-header-bg-color: #{$bg-page};
+  border-radius: $radius-md;
+  overflow: hidden;
+  th.el-table__cell {
+    font-weight: 600;
+    color: $text-primary;
+    background-color: $bg-page !important;
+  }
+}
+
+// ---------- 标签 ----------
+.el-tag {
+  border-radius: $radius-round;
+  border: none;
+  font-weight: 500;
+}
+
+// ---------- 对话框 ----------
+.el-dialog {
+  border-radius: $radius-lg;
+  .el-dialog__header {
+    padding: $spacing-lg $spacing-lg $spacing-md;
+    .el-dialog__title {
+      font-size: $font-size-lg;
+      font-weight: 600;
+    }
+  }
+}
+
+// ---------- 抽屉 ----------
+.el-drawer {
+  .el-drawer__header {
+    margin-bottom: 0;
+    padding: $spacing-lg;
+    border-bottom: 1px solid $border-light;
+    .el-drawer__title {
+      font-size: $font-size-lg;
+      font-weight: 600;
+    }
+  }
+}
+
+// ---------- 菜单 ----------
+.el-menu {
+  border-right: none !important;
+  .el-menu-item {
+    border-radius: $radius-sm;
+    margin: 2px 8px;
+    &.is-active {
+      background-color: $primary-light;
+      color: $primary;
+      font-weight: 600;
+    }
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+  .el-sub-menu__title {
+    border-radius: $radius-sm;
+    margin: 2px 8px;
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+}
+
+// ---------- 面包屑 ----------
+.el-breadcrumb {
+  font-size: $font-size-sm;
+  .el-breadcrumb__inner {
+    color: $text-secondary;
+    &.is-link:hover {
+      color: $primary;
+    }
+  }
+}
+
+// ---------- 分页 ----------
+.el-pagination {
+  .el-pager li {
+    border-radius: $radius-sm;
+    &.is-active {
+      background-color: $primary;
+    }
+  }
+}
