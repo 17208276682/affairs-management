@@ -27,7 +27,7 @@ public enum ErrorCode {
     USER_NOT_FOUND(2001, "用户不存在"),
     USERNAME_EXISTS(2002, "用户名已存在"),
     PHONE_EXISTS(2003, "手机号已被注册"),
-    MANAGER_EXISTS(2004, "该部门已有经理角色"),
+    MANAGER_EXISTS(2004, "该部门已有中级管理者角色"),
     USER_HAS_TASKS(2005, "该用户存在关联事务，无法删除"),
 
     // 部门相关 3xxx

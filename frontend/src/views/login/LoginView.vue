@@ -201,10 +201,7 @@ const form = reactive({
 })
 
 const demoAccounts = [
-  { username: 'admin', password: 'admin123', name: '陈志远', role: '总经办', tagType: 'danger' as const },
-  { username: 'wangjh', password: '123456', name: '王建华', role: '部门经理', tagType: 'warning' as const },
   { username: 'zhaoyang', password: '123456', name: '赵阳', role: '管理员', tagType: 'primary' as const },
-  { username: 'huangxl', password: '123456', name: '黄晓龙', role: '员工', tagType: 'info' as const },
 ]
 
 const forgotForm = reactive({

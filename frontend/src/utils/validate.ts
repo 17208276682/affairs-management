@@ -47,12 +47,18 @@ export const deptFormRules: FormRules = {
 export const memberFormRules: FormRules = {
   name: [
     { required: true, message: '请输入姓名', trigger: 'blur' },
+    { min: 2, max: 20, message: '姓名长度需在2到20位之间', trigger: 'blur' },
+  ],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { pattern: /^[A-Za-z][A-Za-z0-9_]{3,19}$/, message: '用户名需4-20位，以字母开头，仅支持字母/数字/下划线', trigger: 'blur' },
   ],
   deptId: [
     { required: true, message: '请选择所属部门', trigger: 'change' },
   ],
   position: [
     { required: true, message: '请输入职务', trigger: 'blur' },
+    { min: 2, max: 30, message: '职位长度需在2到30位之间', trigger: 'blur' },
   ],
   role: [
     { required: true, message: '请选择角色', trigger: 'change' },

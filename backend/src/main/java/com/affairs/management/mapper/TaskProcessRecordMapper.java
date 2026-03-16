@@ -13,6 +13,8 @@ public interface TaskProcessRecordMapper {
 
     List<TaskProcessRecord> selectByTaskId(@Param("taskId") String taskId);
 
+    List<TaskProcessRecord> selectByTaskIds(@Param("taskIds") List<String> taskIds);
+
     /** 查最近N条流程记录（用于最近动态） */
     List<TaskProcessRecord> selectRecent(@Param("limit") int limit,
                                           @Param("userIds") List<String> userIds);

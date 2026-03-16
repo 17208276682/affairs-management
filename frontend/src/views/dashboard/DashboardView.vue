@@ -319,7 +319,7 @@ import type { DeptStats, PersonStats, Task, TaskLevel } from '@/types'
 use([CanvasRenderer, PieChart, BarChart, GridComponent, LegendComponent, TooltipComponent])
 
 type PanelRole = 'director' | 'manager' | 'staff'
-type StatusKey = 'assigned' | 'pending' | 'completed' | 'unfinished' | 'overdue'
+type StatusKey = 'assigned' | 'pending' | 'completed' | 'rejected' | 'cancelled' | 'overdue'
 
 interface StatusCardConfig {
   key: StatusKey
@@ -369,44 +369,46 @@ const role = computed<PanelRole>(() => {
 const panelConfig = computed(() => {
   const common = {
     director: {
-      title: '陈志远事务驾驶舱',
-      subtitle: '总经办全局指挥视角',
+      title: '高级管理者事务驾驶舱',
+      subtitle: '全局协同视角',
       activityTitle: '下级提交动态',
       pieTitle: '已下达事务四个级别',
       barTitle: '部门总事务数 / 已完成数',
       statuses: [
-        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '已正式下达任务' },
-        { key: 'pending', label: '待办理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '等待部门处理' },
+        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '我的下达菜单数量' },
+        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
         { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '流程已闭环' },
-        { key: 'unfinished', label: '未完成', color: '#f07b61', glow: 'rgba(240, 123, 97, 0.16)', note: '仍在流转中' },
+        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
+        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
         { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过节点时限' },
       ] satisfies StatusCardConfig[],
     },
     manager: {
-      title: '王建华事务驾驶舱',
-      subtitle: '部门经理协同视角',
+      title: '中级管理者事务驾驶舱',
+      subtitle: '部门协同视角',
       activityTitle: '上下级动态',
       pieTitle: '待办理事务四个级别',
       barTitle: '人员总事务数 / 已完成数',
       statuses: [
-        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '已分派给下级' },
-        { key: 'pending', label: '待办理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '本人仍需推进' },
+        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '我的下达菜单数量' },
+        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
         { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '已完成闭环' },
-        { key: 'unfinished', label: '未完成', color: '#f07b61', glow: 'rgba(240, 123, 97, 0.16)', note: '未达到完成态' },
+        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
+        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
         { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超时未结项' },
       ] satisfies StatusCardConfig[],
     },
     staff: {
-      title: '黄晓龙事务驾驶舱',
+      title: '普通员工事务驾驶舱',
       subtitle: '个人执行视角',
       activityTitle: '上级下发动态',
       pieTitle: '待办理事务四个级别',
       barTitle: '个人总事务数 / 已完成数',
       statuses: [
-        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '上级已下达给我' },
-        { key: 'pending', label: '待办理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '待接收或待处理' },
+        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
         { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '审核已通过' },
-        { key: 'unfinished', label: '未完成', color: '#f07b61', glow: 'rgba(240, 123, 97, 0.16)', note: '仍需继续处理' },
+        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
+        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
         { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过办理时限' },
       ] satisfies StatusCardConfig[],
     },
@@ -426,11 +428,12 @@ const statusCountMap = computed<Record<StatusKey, number>>(() => {
   return {
     // 已下达：对应我的下达菜单
     assigned: assignedTasks.value.length,
-    // 待办理：对应我的代办菜单
+    // 待处理：对应我的代办菜单
     pending: todoTasks.value.length,
-    // 以下三项：对应事务列表菜单里的状态
+    // 以下四项：对应事务列表菜单里的状态
     completed: scopeTasks.value.filter(task => isDisplayCompleted(task.status)).length,
-    unfinished: scopeTasks.value.filter(task => isDisplayUnfinished(task.status)).length,
+    rejected: scopeTasks.value.filter(task => task.status === 'rejected').length,
+    cancelled: scopeTasks.value.filter(task => task.status === 'cancelled').length,
     overdue: scopeTasks.value.filter(task => task.status === 'overdue').length,
   }
 })
@@ -705,15 +708,18 @@ function statusDisplay(status: Task['status']) {
     return { label: '已完成', color: '#22a66f', bgColor: '#ecfaf2' }
   }
   if (status === 'submitted') {
-    return { label: '已提交', color: '#7e68e8', bgColor: '#f2efff' }
+    return { label: '待审核', color: '#7e68e8', bgColor: '#f2efff' }
+  }
+  if (status === 'rejected') {
+    return { label: '不通过', color: '#d45767', bgColor: '#fef0f2' }
   }
   if (status === 'overdue') {
     return { label: '已逾期', color: '#d45767', bgColor: '#fef0f2' }
   }
   if (status === 'cancelled') {
-    return { label: '已取消', color: '#9099a8', bgColor: '#f2f4f7' }
+    return { label: '已作废', color: '#9099a8', bgColor: '#f2f4f7' }
   }
-  return { label: '未完成', color: '#ec9a39', bgColor: '#fff8e9' }
+  return { label: '待处理', color: '#ec9a39', bgColor: '#fff8e9' }
 }
 
 function isCompletedTask(status: Task['status']) {
@@ -738,10 +744,6 @@ function isPendingForExecution(status: Task['status']) {
 
 function isDisplayCompleted(status: Task['status']) {
   return ['completed', 'approved'].includes(status)
-}
-
-function isDisplayUnfinished(status: Task['status']) {
-  return !['completed', 'approved', 'overdue', 'cancelled'].includes(status)
 }
 
 function formatNow() {

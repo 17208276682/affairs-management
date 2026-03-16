@@ -6,18 +6,18 @@ import type { User, Department } from '@/types'
 /** 部门数据 */
 export const mockDepartments: Department[] = [
   {
-    id: 'D001', name: 'xxx公司', parentId: null, leaderId: 'U001', leaderName: '陈志远',
-    sort: 1, level: 0, memberCount: 8, status: 1,
+    id: 'D001', name: 'xxx公司', parentId: null, leaderId: 'U006', leaderName: '赵阳',
+    sort: 1, level: 0, memberCount: 6, status: 1,
     createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
   },
   {
-    id: 'D002', name: '总经办', parentId: 'D001', leaderId: 'U001', leaderName: '陈志远',
-    sort: 1, level: 1, memberCount: 2, status: 1,
+    id: 'D002', name: '总经办', parentId: 'D001', leaderId: 'U006', leaderName: '赵阳',
+    sort: 1, level: 1, memberCount: 1, status: 1,
     createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
   },
   {
-    id: 'D003', name: '技术研发部', parentId: 'D002', leaderId: 'U002', leaderName: '王建华',
-    sort: 1, level: 2, memberCount: 4, status: 1,
+    id: 'D003', name: '技术研发部', parentId: 'D002', leaderId: 'U003', leaderName: '张三',
+    sort: 1, level: 2, memberCount: 3, status: 1,
     createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
   },
   {
@@ -34,20 +34,6 @@ export const mockDepartments: Department[] = [
 
 /** 用户数据 */
 export const mockUsers: (User & { password: string })[] = [
-  {
-    id: 'U001', username: 'admin', password: 'admin123', name: '陈志远',
-    avatar: '', phone: '13800000001', email: 'chen@startech.com',
-    deptId: 'D002', deptName: '总经办', position: '总经办负责人', role: 'director',
-    managedDeptIds: ['D001', 'D002', 'D003', 'D004', 'D005'],
-    status: 1, createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
-  },
-  {
-    id: 'U002', username: 'wangjh', password: '123456', name: '王建华',
-    avatar: '', phone: '13800000002', email: 'wang@startech.com',
-    deptId: 'D003', deptName: '技术研发部', position: '技术研发部负责人', role: 'manager',
-    managedDeptIds: ['D003'],
-    status: 1, createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
-  },
   {
     id: 'U003', username: 'zhangsan', password: '123456', name: '张三',
     avatar: '', phone: '13800000003', email: 'li@startech.com',

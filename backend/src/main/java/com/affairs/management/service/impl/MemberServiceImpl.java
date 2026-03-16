@@ -183,15 +183,28 @@ public class MemberServiceImpl implements MemberService {
                                               String currentDeptId) {
         List<User> users;
         if ("subordinates".equals(scope)) {
-            // 本部门下属成员（排除自身和admin）
-            if (currentDeptId != null) {
-                users = userMapper.selectByDeptId(currentDeptId);
-                users = users.stream()
+            // director: 仅可选择下一级部门的 manager
+            // manager: 仅可选择本部门 staff
+            if (currentDeptId == null) {
+                users = Collections.emptyList();
+            } else if ("manager".equals(currentRole)) {
+                users = userMapper.selectByDeptId(currentDeptId).stream()
                         .filter(u -> !u.getId().equals(currentUserId))
-                        .filter(u -> !"admin".equals(u.getRole()))
+                        .filter(u -> "staff".equals(u.getRole()))
                         .collect(Collectors.toList());
             } else {
-                users = Collections.emptyList();
+                List<String> childDeptIds = deptMapper.selectChildren(currentDeptId)
+                        .stream()
+                        .map(Department::getId)
+                        .collect(Collectors.toList());
+                if (childDeptIds.isEmpty()) {
+                    users = Collections.emptyList();
+                } else {
+                    users = userMapper.selectByDeptIds(childDeptIds).stream()
+                            .filter(u -> !u.getId().equals(currentUserId))
+                            .filter(u -> "manager".equals(u.getRole()))
+                            .collect(Collectors.toList());
+                }
             }
         } else if (deptIds != null && !deptIds.isEmpty()) {
             // 指定部门的成员

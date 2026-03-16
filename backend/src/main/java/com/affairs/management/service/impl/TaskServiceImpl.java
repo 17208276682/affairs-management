@@ -49,6 +49,7 @@ public class TaskServiceImpl implements TaskService {
         if (executor == null) {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
         }
+        validateAssignableExecutor(assigner, executor);
 
         // 解析紧急类型
         UrgencyType urgencyType = UrgencyType.fromCode(request.getUrgencyType());
@@ -149,9 +150,20 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
         }
 
+        List<ProcessRecordVO> processRecords = getProcessRecords(taskId);
+        List<String> descendantIds = taskMapper.selectAllDescendantIds(taskId);
+        if (descendantIds != null && !descendantIds.isEmpty()) {
+            List<ProcessRecordVO> childSubmitRecords = recordMapper.selectByTaskIds(descendantIds).stream()
+                    .filter(r -> "submit".equals(r.getAction()))
+                    .map(this::toRecordVO)
+                    .collect(Collectors.toList());
+            processRecords.addAll(childSubmitRecords);
+            processRecords.sort(Comparator.comparing(ProcessRecordVO::getCreatedAt));
+        }
+
         TaskDetailResponse response = new TaskDetailResponse();
         response.setTask(toTaskVO(task));
-        response.setProcessRecords(getProcessRecords(taskId));
+        response.setProcessRecords(processRecords);
         return response;
     }
 
@@ -182,7 +194,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public ProcessRecordVO addProcessRecord(String taskId, ProcessRequest request, String currentUserId) {
         Task task = taskMapper.selectById(taskId);
-        validateTaskOperation(task, currentUserId, true, "pending", "accepted", "in_progress", "rejected");
+        validateTaskOperation(task, currentUserId, true, "pending", "accepted", "in_progress", "overdue");
 
         // 若为 pending 或 accepted 状态，自动推进到 in_progress
         if ("pending".equals(task.getStatus()) || "accepted".equals(task.getStatus())) {
@@ -214,7 +226,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskVO submitTask(String taskId, ProcessRequest request, String currentUserId) {
         Task task = taskMapper.selectById(taskId);
-        validateTaskOperation(task, currentUserId, true, "pending", "accepted", "in_progress", "rejected");
+        validateTaskOperation(task, currentUserId, true, "pending", "accepted", "in_progress", "overdue");
 
         // 如果是 pending 状态直接提交，自动记录接收时间
         if ("pending".equals(task.getStatus())) {
@@ -309,10 +321,12 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
         }
 
+        User assigner = userMapper.selectById(currentUserId);
         User newExecutor = userMapper.selectById(request.getExecutorId());
         if (newExecutor == null) {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
         }
+        validateAssignableExecutor(assigner, newExecutor);
 
         // 创建子任务
         Task childTask = new Task();
@@ -335,7 +349,6 @@ public class TaskServiceImpl implements TaskService {
                 "向下分派给 " + newExecutor.getName());
 
         // 通知新执行人
-        User assigner = userMapper.selectById(currentUserId);
         notificationService.createNotification(
                 request.getExecutorId(), "新事务指派",
                 assigner.getName() + " 给您指派了新事务：" + childTask.getTitle(),
@@ -416,6 +429,36 @@ public class TaskServiceImpl implements TaskService {
         record.setAction(action);
         record.setContent(content);
         recordMapper.insert(record);
+    }
+
+    private void validateAssignableExecutor(User assigner, User executor) {
+        if (assigner == null || executor == null) {
+            throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
+        }
+
+        if ("director".equals(assigner.getRole())) {
+            List<String> childDeptIds = deptMapper.selectChildren(assigner.getDeptId())
+                    .stream()
+                    .map(Department::getId)
+                    .collect(Collectors.toList());
+            boolean valid = "manager".equals(executor.getRole())
+                    && childDeptIds.contains(executor.getDeptId());
+            if (!valid) {
+                throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "高级管理者仅可下发给下一级中级管理者");
+            }
+            return;
+        }
+
+        if ("manager".equals(assigner.getRole())) {
+            boolean valid = "staff".equals(executor.getRole())
+                    && Objects.equals(assigner.getDeptId(), executor.getDeptId());
+            if (!valid) {
+                throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "中级管理者仅可下发给本部门普通员工");
+            }
+            return;
+        }
+
+        throw new BusinessException(ErrorCode.TASK_NO_PERMISSION, "当前角色无下发权限");
     }
 
     private TaskVO toTaskVO(Task task) {

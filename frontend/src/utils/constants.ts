@@ -69,8 +69,8 @@ export const PROCESS_ACTION_MAP: Record<string, { label: string; icon: string; c
 /** 角色映射 */
 export const ROLE_MAP: Record<string, string> = {
   admin: '系统管理员',
-  director: '总经办',
-  manager: '部门经理',
+  director: '高级管理者',
+  manager: '中级管理者',
   staff: '普通员工',
 }
 

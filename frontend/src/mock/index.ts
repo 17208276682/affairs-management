@@ -636,16 +636,15 @@ function matchRoute(path: string, method: string, body: any, params: any): any {
     const childDepts = departments.filter(d => d.parentId === user.deptId)
     let list
     if (params?.scope === 'subordinates') {
-      // 用于下发任务：
-      // 经理优先选择本部门成员（不含本人）；总经办/其他角色选择子部门成员
+      // director: 仅可选下一级部门中级管理者；manager: 仅可选本部门普通员工
       if (user.role === 'manager') {
         list = mockUsers
-          .filter(u => u.deptId === user.deptId && u.id !== user.id && u.role !== 'admin')
+          .filter(u => u.deptId === user.deptId && u.id !== user.id && u.role === 'staff')
           .map(({ password, ...u }) => u)
       } else {
         const childDeptIds = childDepts.map(d => d.id)
         list = mockUsers
-          .filter(u => childDeptIds.includes(u.deptId) && u.role !== 'admin')
+          .filter(u => childDeptIds.includes(u.deptId) && u.id !== user.id && u.role === 'manager')
           .map(({ password, ...u }) => u)
       }
     } else {

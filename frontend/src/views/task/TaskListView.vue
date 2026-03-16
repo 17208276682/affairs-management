@@ -430,15 +430,19 @@
               <div class="panel-section">
                 <div v-if="selectedTask.status === 'submitted'" class="action-result result-approve">
                   <el-icon :size="18"><CircleCheck /></el-icon>
-                  下级已提交
+                  待审核
                 </div>
                 <div v-else-if="selectedTask.status === 'completed' || selectedTask.status === 'approved'" class="action-result result-approve">
                   <el-icon :size="18"><CircleCheck /></el-icon>
-                  已通过
+                  已完成
                 </div>
                 <div v-else-if="selectedTask.status === 'rejected'" class="action-result result-reject">
                   <el-icon :size="18"><CircleClose /></el-icon>
-                  未通过
+                  不通过
+                </div>
+                <div v-else-if="selectedTask.status === 'cancelled'" class="action-result result-cancel">
+                  <el-icon :size="18"><CircleClose /></el-icon>
+                  已作废
                 </div>
                 <div v-else class="action-result result-pending">
                   <el-icon :size="18"><Clock /></el-icon>
@@ -493,7 +497,7 @@
                 </div>
                 <div class="panel-section">
                   <div class="action-result" :class="taskResultClass">
-                    <el-icon :size="18"><CircleCheck v-if="selectedTask.status !== 'rejected'" /><CircleClose v-else /></el-icon>
+                      <el-icon :size="18"><CircleCheck v-if="!['rejected', 'cancelled'].includes(selectedTask.status)" /><CircleClose v-else /></el-icon>
                     {{ taskResultText }}
                   </div>
                 </div>
@@ -570,9 +574,9 @@
             <!-- 5. 操作按钮（代办审批角色） -->
             <div v-if="canReviewTodoTask" class="panel-section panel-actions">
               <template v-if="isTaskResolved">
-                <div class="action-result" :class="selectedTask.status === 'rejected' ? 'result-reject' : 'result-approve'">
-                  <el-icon :size="18"><CircleCheck v-if="selectedTask.status !== 'rejected'" /><CircleClose v-else /></el-icon>
-                  {{ selectedTask.status === 'rejected' ? '已标记为不通过' : '已标记为通过' }}
+                <div class="action-result" :class="selectedTask.status === 'rejected' ? 'result-reject' : selectedTask.status === 'cancelled' ? 'result-cancel' : 'result-approve'">
+                  <el-icon :size="18"><CircleCheck v-if="!['rejected', 'cancelled'].includes(selectedTask.status)" /><CircleClose v-else /></el-icon>
+                  {{ selectedTask.status === 'rejected' ? '已标记为不通过' : selectedTask.status === 'cancelled' ? '已标记为作废' : '已标记为完成' }}
                 </div>
               </template>
               <template v-else-if="selectedTask.status === 'submitted'">
@@ -582,6 +586,9 @@
                 <el-button type="danger" style="flex: 1" :loading="rejecting" @click="rejectDialogVisible = true">
                   <el-icon><CircleClose /></el-icon>不通过
                 </el-button>
+                <el-button type="info" style="flex: 1" @click="handleCancel">
+                  <el-icon><Close /></el-icon>作废
+                </el-button>
               </template>
               <template v-else>
                 <div class="action-result result-pending">
@@ -590,7 +597,7 @@
                 </div>
               </template>
             </div>
-            <!-- 事务列表（部门经理/manager）：提交给上级（已移入经理列表专属布局） -->
+            <!-- 事务列表（中级管理者/manager）：提交给上级（已移入中级管理者列表专属布局） -->
             <!-- 事务代办（普通员工）：提交（已移入员工代办专属布局） -->
           </el-card>
         </template>
@@ -713,7 +720,7 @@ import { TASK_LEVEL_MAP, PROCESS_ACTION_MAP } from '@/utils/constants'
 import { formatDateTime, getTimeRemaining } from '@/utils/format'
 import { getSubordinatesApi } from '@/api/organization'
 import { taskFormRules } from '@/utils/validate'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Task, TaskLevel, TaskProcessRecord, User, TaskUrgencyType } from '@/types'
 import type { FormInstance, UploadUserFile } from 'element-plus'
 
@@ -829,8 +836,17 @@ const canCreateTask = computed(() => {
 
 /** 将内部状态映射为显示状态 */
 function getDisplayStatus(status: string): { label: string; color: string; bgColor: string } {
+  if (['pending', 'accepted', 'in_progress'].includes(status)) {
+    return { label: '待处理', color: '#F59E0B', bgColor: '#FFFBEB' }
+  }
+  if (status === 'submitted') {
+    return { label: '待审核', color: '#3B82F6', bgColor: '#EFF6FF' }
+  }
   if (['completed', 'approved'].includes(status)) {
     return { label: '已完成', color: '#22C55E', bgColor: '#ECFDF5' }
+  }
+  if (status === 'rejected') {
+    return { label: '不通过', color: '#DC2626', bgColor: '#FEF2F2' }
   }
   if (status === 'overdue') {
     return { label: '已逾期', color: '#DC2626', bgColor: '#FEF2F2' }
@@ -838,7 +854,7 @@ function getDisplayStatus(status: string): { label: string; color: string; bgCol
   if (status === 'cancelled') {
     return { label: '已作废', color: '#9CA3AF', bgColor: '#F3F4F6' }
   }
-  return { label: '未完成', color: '#F59E0B', bgColor: '#FFFBEB' }
+  return { label: '待处理', color: '#F59E0B', bgColor: '#FFFBEB' }
 }
 
 /** 将处理记录转为流程节点 */
@@ -885,7 +901,7 @@ const flowNodes = computed(() => {
   })
 })
 
-/** 仅当前任务直接记录的流程节点（不含子任务记录），用于陈志远视图 */
+/** 仅当前任务直接记录的流程节点（不含子任务记录），用于高级管理者视图 */
 const directFlowNodes = computed(() => {
   if (!selectedTask.value) return []
   const taskId = selectedTask.value.id
@@ -895,7 +911,7 @@ const directFlowNodes = computed(() => {
   })
 })
 
-/** 所有提交记录（包含子任务的提交，即普通员工→部门经理→总经办链路） */
+/** 所有提交记录（包含子任务的提交，即普通员工→中级管理者→高级管理者链路） */
 const allSubmissions = computed((): TaskProcessRecord[] => {
   const records = taskStore.currentRecords
   return records.filter(r => r.action === 'submit')
@@ -922,7 +938,7 @@ const directSubmissionAttachments = computed(() => {
     .map(s => ({ sub: s, files: s.attachments }))
 })
 
-/** 任务是否已终结（通过/不通过/已完成/已取消），用于总经办审批按钮 */
+/** 任务是否已终结（通过/不通过/已完成/已取消），用于高级管理者审批按钮 */
 const isTaskResolved = computed(() => {
   if (!selectedTask.value) return true
   return ['completed', 'approved', 'rejected', 'cancelled'].includes(selectedTask.value.status)
@@ -958,10 +974,10 @@ const rejectReasonText = computed(() => {
 const taskResultText = computed(() => {
   if (!selectedTask.value) return ''
   const status = selectedTask.value.status
-  if (status === 'submitted') return '已提交'
-  if (status === 'completed' || status === 'approved') return '已通过'
-  if (status === 'rejected') return '未通过'
-  if (status === 'cancelled') return '已取消'
+  if (status === 'submitted') return '待审核'
+  if (status === 'completed' || status === 'approved') return '已完成'
+  if (status === 'rejected') return '不通过'
+  if (status === 'cancelled') return '已作废'
   return ''
 })
 
@@ -970,6 +986,7 @@ const taskResultClass = computed(() => {
   if (!selectedTask.value) return ''
   const status = selectedTask.value.status
   if (status === 'rejected') return 'result-reject'
+  if (status === 'cancelled') return 'result-cancel'
   if (status === 'submitted') return 'result-pending'
   return 'result-approve'
 })
@@ -1011,7 +1028,7 @@ function showCreatePanel() {
   createForm.value = { description: '', urgencyType: '', completionDeadline: '', executorId: '' }
   createSelectedExecutor.value = null
   createFileList.value = []
-  orgStore.fetchSelectableMembers(undefined, userStore.userInfo?.role === 'manager' ? 'subordinates' : undefined)
+  orgStore.fetchSelectableMembers(undefined, 'subordinates')
 }
 
 function selectExecutor(member: User) {
@@ -1106,6 +1123,25 @@ async function handleReject() {
   }
 }
 
+async function handleCancel() {
+  if (!selectedTask.value) return
+  try {
+    const { value } = await ElMessageBox.prompt('请输入作废原因', '作废事务', {
+      inputPlaceholder: '请输入作废原因',
+      confirmButtonText: '确认作废',
+      cancelButtonText: '取消',
+      inputValidator: (val) => !!val?.trim() || '作废原因不能为空',
+    })
+    await taskStore.cancelTask(selectedTask.value.id, value)
+    ElMessage.success('已作废')
+    await taskStore.fetchTaskDetail(selectedTask.value.id)
+    selectedTask.value = { ...taskStore.currentTask! }
+    handleSearch()
+  } catch {
+    // 用户取消或请求失败
+  }
+}
+
 /** 打开普通提交弹窗 */
 function openNormalSubmit() {
   isSubmitToSuperior.value = false
@@ -1114,7 +1150,7 @@ function openNormalSubmit() {
   submitDialogVisible.value = true
 }
 
-/** 打开提交给上级弹窗（部门经理在事务列表中使用） */
+/** 打开提交给上级弹窗（中级管理者在事务列表中使用） */
 function openSubmitToSuperior() {
   isSubmitToSuperior.value = true
   submitContent.value = ''
@@ -1663,6 +1699,10 @@ onMounted(() => {
   &.result-reject {
     background: #FEF2F2;
     color: #DC2626;
+  }
+  &.result-cancel {
+    background: #F3F4F6;
+    color: #6B7280;
   }
   &.result-pending {
     background: #FFF7ED;

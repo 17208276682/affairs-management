@@ -72,15 +72,17 @@
                     <when test="role == 'manager'">
                         AND (
                             (t.executor_id = #{currentUserId}
-                             AND t.status IN ('pending', 'accepted', 'in_progress', 'rejected'))
+                             AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue')
+                             AND t.parent_task_id IS NULL)
                             OR
                             (t.assigner_id = #{currentUserId}
-                             AND t.status = 'submitted')
+                             AND t.status = 'submitted'
+                             AND t.parent_task_id IS NULL)
                         )
                     </when>
                     <otherwise>
                         AND t.executor_id = #{currentUserId}
-                        AND t.status IN ('pending', 'accepted', 'in_progress', 'rejected')
+                        AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue')
                     </otherwise>
                 </choose>
             </if>

@@ -14,7 +14,7 @@
             </div>
           </template>
           <el-tree
-            :data="orgStore.orgTree"
+            :data="deptOnlyTree"
             :props="{ label: 'label', children: 'children' }"
             node-key="id"
             default-expand-all
@@ -102,7 +102,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { useOrganizationStore } from '@/stores'
 import { deptFormRules } from '@/utils/validate'
-import type { Department } from '@/types'
+import type { Department, OrgTreeNode } from '@/types'
 
 const orgStore = useOrganizationStore()
 const loading = ref(false)
@@ -113,6 +113,18 @@ const selectedDeptId = ref('')
 
 const form = ref({ id: '', name: '', parentId: '', parentName: '无（顶级部门）' })
 const formTitle = computed(() => form.value.id ? '编辑部门' : '新增部门')
+
+const deptOnlyTree = computed<OrgTreeNode[]>(() => {
+  const filterDeptNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
+    return nodes
+      .filter(node => node.type === 'dept')
+      .map(node => ({
+        ...node,
+        children: node.children ? filterDeptNodes(node.children) : [],
+      }))
+  }
+  return filterDeptNodes(orgStore.orgTree)
+})
 
 const selectedDept = computed(() => orgStore.deptList.find(d => d.id === selectedDeptId.value) || null)
 const isLeaf = computed(() => {
@@ -132,7 +144,8 @@ const childrenDepts = computed(() => {
   return orgStore.deptList.filter(d => d.parentId === selectedDept.value!.id)
 })
 
-function handleDeptClick(row: Department) {
+function handleDeptClick(row: OrgTreeNode) {
+  if (row.type !== 'dept') return
   selectedDeptId.value = row.id
 }
 
@@ -201,7 +214,8 @@ async function loadData() {
   loading.value = true
   try {
     await Promise.all([orgStore.fetchDeptList(), orgStore.fetchOrgTree()])
-    if (!selectedDeptId.value && orgStore.deptList.length) {
+    const hasSelected = selectedDeptId.value && orgStore.deptList.some(d => d.id === selectedDeptId.value)
+    if ((!selectedDeptId.value || !hasSelected) && orgStore.deptList.length) {
       selectedDeptId.value = orgStore.deptList.find(d => d.level === 0)?.id || orgStore.deptList[0].id
     }
   } finally {

@@ -13,8 +13,8 @@
         <el-card class="tree-panel">
           <template #header><span class="panel-title">部门筛选</span></template>
           <el-tree
-            :data="orgStore.orgTree"
-            :props="{ label: 'label', children: 'children' }"
+            :data="deptOnlyTree"
+            :props="treeNodeProps"
             node-key="id"
             default-expand-all
             highlight-current
@@ -27,20 +27,29 @@
       <el-col :span="18">
         <el-card v-loading="loading" class="list-panel">
           <div class="filter-row">
-            <el-input v-model="nameKeyword" placeholder="搜索姓名" prefix-icon="Search" clearable style="width: 220px" @change="loadMembers" />
-            <el-input v-model="positionKeyword" placeholder="搜索职位" prefix-icon="Search" clearable style="width: 220px" @change="loadMembers" />
+            <el-input v-model="nameKeyword" placeholder="按姓名筛选" prefix-icon="Search" clearable style="width: 200px" @change="handleFilterChange" />
+            <el-select v-model="filterDeptId" placeholder="按部门筛选" clearable style="width: 200px" @change="handleFilterChange">
+              <el-option v-for="option in deptSelectOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-input v-model="positionKeyword" placeholder="按职位筛选" prefix-icon="Search" clearable style="width: 200px" @change="handleFilterChange" />
+            <el-select v-model="roleKeyword" placeholder="按角色筛选" clearable style="width: 170px" @change="handleFilterChange">
+              <el-option label="高级管理者" value="director" />
+              <el-option label="中级管理者" value="manager" />
+              <el-option label="普通员工" value="staff" />
+            </el-select>
+            <el-button @click="clearFilters">重置</el-button>
           </div>
           <div class="table-wrapper">
-            <el-table :data="orgStore.memberList" stripe class="member-table" table-layout="auto">
+            <el-table :data="sortedMemberList" stripe class="member-table" table-layout="auto">
               <el-table-column label="姓名" prop="name" min-width="100" />
-              <el-table-column label="账号" prop="username" min-width="140" />
+              <el-table-column label="用户名" prop="username" min-width="140" />
               <el-table-column label="部门" prop="deptName" min-width="180" />
               <el-table-column label="职位" prop="position" min-width="140" />
               <el-table-column label="手机号" prop="phone" min-width="150" />
               <el-table-column label="邮箱" prop="email" min-width="220" />
               <el-table-column label="角色" min-width="120" align="center">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.role === 'manager' ? 'warning' : 'info'">
+                <el-tag size="small" :type="row.role === 'director' ? 'danger' : row.role === 'manager' ? 'warning' : 'info'">
                   {{ ROLE_MAP[row.role] || row.role }}
                 </el-tag>
               </template>
@@ -48,11 +57,7 @@
               <el-table-column label="操作" min-width="160">
               <template #default="{ row }">
                 <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-                <el-popconfirm title="确认删除？" @confirm="handleDelete(row.id)">
-                  <template #reference>
-                    <el-button link type="danger">删除</el-button>
-                  </template>
-                </el-popconfirm>
+                <el-button link type="danger" @click="handleDeleteConfirm(row.id)">删除</el-button>
               </template>
               </el-table-column>
             </el-table>
@@ -61,7 +66,7 @@
             <el-pagination
               v-model:current-page="page"
               :total="orgStore.memberTotal"
-              :page-size="20"
+              :page-size="pageSize"
               layout="total, prev, pager, next"
               @current-change="loadMembers"
             />
@@ -76,8 +81,8 @@
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入" />
         </el-form-item>
-        <el-form-item label="账号" prop="username">
-          <el-input v-model="form.username" placeholder="请输入账号" :disabled="!!form.id" />
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="form.username" placeholder="请输入用户名" :disabled="!!form.id" />
         </el-form-item>
         <el-form-item v-if="!form.id || form.needResetPassword" label="密码" prop="password">
           <div class="password-row">
@@ -91,26 +96,28 @@
         <el-form-item label="部门" prop="deptId">
           <el-tree-select
             v-model="form.deptId"
-            :data="orgStore.orgTree"
-            :props="{ label: 'label', children: 'children' }"
+            :data="deptOnlyTree"
+            :props="treeNodeProps"
             placeholder="选择部门"
             check-strictly
+            node-key="id"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="职位">
+        <el-form-item label="职位" prop="position">
           <el-input v-model="form.position" placeholder="请输入" />
         </el-form-item>
-        <el-form-item label="手机号">
+        <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" placeholder="请输入" />
         </el-form-item>
-        <el-form-item label="邮箱">
+        <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" placeholder="请输入" />
         </el-form-item>
-        <el-form-item label="角色">
+        <el-form-item label="角色" prop="role">
           <el-select v-model="form.role" style="width: 100%">
+            <el-option label="高级管理者" value="director" />
+            <el-option label="中级管理者" value="manager" />
             <el-option label="普通员工" value="staff" />
-            <el-option label="部门经理" value="manager" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -124,12 +131,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { useOrganizationStore } from '@/stores'
 import { ROLE_MAP } from '@/utils/constants'
 import { memberFormRules } from '@/utils/validate'
-import type { User, OrgTreeNode } from '@/types'
+import type { User, OrgTreeNode, Department } from '@/types'
 import { getMemberListApi } from '@/api/organization'
 
 const orgStore = useOrganizationStore()
@@ -138,9 +145,12 @@ const showForm = ref(false)
 const saving = ref(false)
 const formRef = ref<FormInstance>()
 const nameKeyword = ref('')
+const filterDeptId = ref('')
 const positionKeyword = ref('')
+const roleKeyword = ref('')
 const selectedDeptId = ref('')
 const page = ref(1)
+const pageSize = ref(20)
 
 const form = ref({
   id: '', name: '', username: '', password: '', deptId: '', position: '',
@@ -148,9 +158,76 @@ const form = ref({
 })
 
 const formTitle = computed(() => form.value.id ? '编辑人员' : '新增人员')
+const treeNodeProps = { label: 'label', children: 'children', value: 'id' }
+
+const deptSelectOptions = computed(() => orgStore.deptList.map(dept => ({
+  label: dept.name,
+  value: dept.id,
+})))
+
+const deptLevelMap = computed<Record<string, number>>(() => {
+  return orgStore.deptList.reduce((acc, dept: Department) => {
+    acc[dept.id] = dept.level
+    return acc
+  }, {} as Record<string, number>)
+})
+
+const sortedMemberList = computed(() => {
+  const list = roleKeyword.value
+    ? orgStore.memberList.filter(member => member.role === roleKeyword.value)
+    : orgStore.memberList
+
+  const rolePriority = (role: string) => {
+    if (role === 'director') return 0
+    if (role === 'manager') return 1
+    return 2
+  }
+
+  return [...list].sort((a, b) => {
+    const roleDiff = rolePriority(a.role) - rolePriority(b.role)
+    if (roleDiff !== 0) return roleDiff
+
+    const levelA = deptLevelMap.value[a.deptId] ?? 99
+    const levelB = deptLevelMap.value[b.deptId] ?? 99
+    if (levelA !== levelB) return levelA - levelB
+
+    const deptDiff = (a.deptName || '').localeCompare(b.deptName || '', 'zh-CN')
+    if (deptDiff !== 0) return deptDiff
+
+    return (a.name || '').localeCompare(b.name || '', 'zh-CN')
+  })
+})
+
+const deptOnlyTree = computed<OrgTreeNode[]>(() => {
+  const filterDeptNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
+    return nodes
+      .filter(node => node.type === 'dept')
+      .map(node => ({
+        ...node,
+        children: node.children ? filterDeptNodes(node.children) : [],
+      }))
+  }
+  return filterDeptNodes(orgStore.orgTree)
+})
 
 function handleDeptClick(data: OrgTreeNode) {
-  selectedDeptId.value = data.id
+  filterDeptId.value = ''
+  const currentDept = orgStore.deptList.find(dept => dept.id === data.id)
+  selectedDeptId.value = currentDept && (currentDept.level === 0 || !currentDept.parentId) ? '' : data.id
+  page.value = 1
+  loadMembers()
+}
+
+function handleFilterChange() {
+  page.value = 1
+  loadMembers()
+}
+
+function clearFilters() {
+  nameKeyword.value = ''
+  filterDeptId.value = ''
+  positionKeyword.value = ''
+  roleKeyword.value = ''
   page.value = 1
   loadMembers()
 }
@@ -158,13 +235,17 @@ function handleDeptClick(data: OrgTreeNode) {
 async function loadMembers() {
   loading.value = true
   try {
+    const deptId = filterDeptId.value || selectedDeptId.value || undefined
+    const showAllMembers = !deptId
+    pageSize.value = showAllMembers ? 9999 : 20
     await orgStore.fetchMemberList({
-      deptId: selectedDeptId.value || undefined,
+      deptId,
       keyword: nameKeyword.value || undefined,
       position: positionKeyword.value || undefined,
-      page: page.value,
-      pageSize: 20,
+      page: showAllMembers ? 1 : page.value,
+      pageSize: pageSize.value,
     })
+    if (showAllMembers) page.value = 1
   } finally {
     loading.value = false
   }
@@ -176,7 +257,7 @@ function handleAdd() {
     name: '',
     username: '',
     password: generateStrongPassword(),
-    deptId: selectedDeptId.value,
+    deptId: filterDeptId.value || selectedDeptId.value,
     position: '',
     phone: '',
     email: '',
@@ -227,7 +308,21 @@ async function validateManagerLimit() {
   const res = await getMemberListApi({ deptId: form.value.deptId, page: 1, pageSize: 999 })
   const hasOtherManager = res.data.list.some(m => m.role === 'manager' && m.id !== form.value.id)
   if (hasOtherManager) {
-    throw new Error('同一部门只能设置一名部门经理')
+    throw new Error('同一部门只能设置一名中级管理者')
+  }
+}
+
+async function handleDeleteConfirm(id: string) {
+  try {
+    await ElMessageBox.confirm('确认删除该人员？', '删除确认', {
+      type: 'warning',
+      center: true,
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+    })
+    await handleDelete(id)
+  } catch {
+    // 用户取消
   }
 }
 
@@ -263,7 +358,8 @@ async function save() {
 }
 
 onMounted(async () => {
-  await orgStore.fetchOrgTree()
+  await Promise.all([orgStore.fetchOrgTree(), orgStore.fetchDeptList()])
+  selectedDeptId.value = ''
   loadMembers()
 })
 </script>
@@ -327,6 +423,10 @@ onMounted(async () => {
 }
 
 .filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $spacing-sm;
   margin-bottom: $spacing-sm;
 }
 
