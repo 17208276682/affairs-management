@@ -177,7 +177,7 @@
                 </div>
               </el-form-item>
               <el-form-item label="附件">
-                <el-upload v-model:file-list="createFileList" action="#" :auto-upload="false" :limit="5" multiple>
+                <el-upload v-model:file-list="createFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
                   <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
                   <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                 </el-upload>
@@ -232,6 +232,8 @@
                 <div v-for="file in selectedTask.attachments" :key="file.id" class="panel-file">
                   <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                   <span class="file-name">{{ file.name }}</span>
+                  <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                  <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
                 </div>
               </template>
               <p v-else class="empty-hint">{{ isMyTodo ? '暂未收到上级附件' : '暂无附件给下级人员' }}</p>
@@ -280,6 +282,8 @@
                       <div v-for="file in sub.attachments" :key="file.id" class="panel-file">
                         <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                         <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
                       </div>
                     </div>
                   </div>
@@ -325,7 +329,7 @@
                   <div class="panel-label">提交给上级</div>
                   <el-form label-position="top" class="inline-submit-form">
                     <el-form-item label="附件上传">
-                      <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple>
+                      <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
                         <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
                         <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                       </el-upload>
@@ -347,7 +351,7 @@
                   <div class="panel-label">提交内容</div>
                   <el-form label-position="top" class="inline-submit-form">
                     <el-form-item label="附件上传">
-                      <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple>
+                      <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
                         <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
                         <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                       </el-upload>
@@ -403,6 +407,8 @@
                       <div v-for="file in item.files" :key="file.id" class="panel-file">
                         <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                         <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
                       </div>
                     </div>
                   </div>
@@ -462,7 +468,7 @@
                 <div class="panel-label">提交内容</div>
                 <el-form label-position="top" class="inline-submit-form">
                   <el-form-item label="附件上传">
-                    <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple>
+                    <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
                       <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
                       <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                     </el-upload>
@@ -491,6 +497,8 @@
                       <div v-for="file in sub.attachments" :key="file.id" class="panel-file">
                         <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                         <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
                       </div>
                     </div>
                   </div>
@@ -547,6 +555,8 @@
                       <div v-for="file in item.files" :key="file.id" class="panel-file">
                         <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                         <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
                       </div>
                     </div>
                   </div>
@@ -631,6 +641,7 @@
             :auto-upload="false"
             :limit="5"
             multiple
+            :on-preview="handleUploadPreview"
           >
             <el-button type="primary" plain>
               <el-icon><UploadFilled /></el-icon>选择文件
@@ -708,6 +719,15 @@
         <el-empty v-if="subordinates.length === 0" description="无可选下级人员" />
       </div>
     </el-dialog>
+
+    <AttachmentPreviewDialog
+      :visible="previewVisible"
+      :url="previewUrl"
+      :title="previewTitle"
+      :mime-type="previewMimeType"
+      @update:visible="handlePreviewVisibleChange"
+      @download="downloadCurrentPreview"
+    />
   </div>
 </template>
 
@@ -715,14 +735,17 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { useUserStore, useTaskStore, useOrganizationStore } from '@/stores'
 import { TASK_LEVEL_MAP, PROCESS_ACTION_MAP } from '@/utils/constants'
 import { formatDateTime, getTimeRemaining } from '@/utils/format'
 import { getSubordinatesApi } from '@/api/organization'
+import { buildPreviewUrl, buildDownloadUrl } from '@/api/file'
 import { taskFormRules } from '@/utils/validate'
+import { uploadAttachments, getUploadFilePreview, downloadUploadFile } from '@/utils/attachment'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Task, TaskLevel, TaskProcessRecord, User, TaskUrgencyType } from '@/types'
-import type { FormInstance, UploadUserFile } from 'element-plus'
+import type { FormInstance, UploadUserFile, UploadFile } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
@@ -768,6 +791,13 @@ const createSubmitting = ref(false)
 const showPersonPicker = ref(false)
 const createFileList = ref<UploadUserFile[]>([])
 const createSelectedExecutor = ref<User | null>(null)
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const previewMimeType = ref('')
+const previewAttachmentId = ref('')
+const previewUploadFile = ref<UploadUserFile | null>(null)
+const previewRevoke = ref<null | (() => void)>(null)
 const createForm = ref({
   description: '',
   urgencyType: '' as TaskUrgencyType | '',
@@ -1042,12 +1072,13 @@ async function handleCreateSubmit() {
   await createFormRef.value.validate()
   createSubmitting.value = true
   try {
+    const uploadedAttachments = await uploadAttachments(createFileList.value)
     await taskStore.createTask({
       description: createForm.value.description,
       urgencyType: createForm.value.urgencyType as TaskUrgencyType,
       completionDeadline: createForm.value.completionDeadline,
       executorId: createForm.value.executorId,
-      attachments: [],
+      attachments: uploadedAttachments,
     })
     ElMessage.success('事务下达成功')
     panelMode.value = null
@@ -1165,9 +1196,10 @@ async function handleSubmitTask() {
     ? selectedTask.value.parentTaskId
     : selectedTask.value.id
   try {
+    const uploadedAttachments = await uploadAttachments(submitFileList.value)
     await taskStore.submitResult(taskId, {
       content: submitContent.value,
-      attachments: [],
+      attachments: uploadedAttachments,
     })
     ElMessage.success('提交成功')
     submitDialogVisible.value = false
@@ -1220,9 +1252,10 @@ async function handleInlineSubmit() {
   if (!selectedTask.value || !submitContent.value.trim()) return
   submittingInline.value = true
   try {
+    const uploadedAttachments = await uploadAttachments(submitFileList.value)
     await taskStore.submitResult(selectedTask.value.id, {
       content: submitContent.value,
-      attachments: [],
+      attachments: uploadedAttachments,
     })
     ElMessage.success('提交成功')
     submitContent.value = ''
@@ -1287,6 +1320,58 @@ function statusSortValue(status: Task['status']) {
   if (status === 'cancelled') return 5
   if (status === 'submitted') return 2
   return 1
+}
+
+function openPreview(fileId: string, name?: string, mimeType?: string) {
+  clearPreviewObjectUrl()
+  previewAttachmentId.value = fileId
+  previewUploadFile.value = null
+  previewUrl.value = buildPreviewUrl(fileId)
+  previewTitle.value = name || '附件预览'
+  previewMimeType.value = mimeType || ''
+  previewVisible.value = true
+}
+
+function openDownload(fileId: string) {
+  window.open(buildDownloadUrl(fileId), '_blank')
+}
+
+function handleUploadPreview(file: UploadFile) {
+  const userFile = file as UploadUserFile
+  const source = getUploadFilePreview(userFile)
+  if (!source) return
+  clearPreviewObjectUrl()
+  previewAttachmentId.value = ''
+  previewUploadFile.value = userFile
+  previewUrl.value = source.url
+  previewTitle.value = source.name
+  previewMimeType.value = source.type
+  previewRevoke.value = source.revoke
+  previewVisible.value = true
+}
+
+function handlePreviewVisibleChange(visible: boolean) {
+  previewVisible.value = visible
+  if (!visible) {
+    clearPreviewObjectUrl()
+  }
+}
+
+function clearPreviewObjectUrl() {
+  if (previewRevoke.value) {
+    previewRevoke.value()
+    previewRevoke.value = null
+  }
+}
+
+function downloadCurrentPreview() {
+  if (previewUploadFile.value) {
+    downloadUploadFile(previewUploadFile.value)
+    return
+  }
+  if (previewAttachmentId.value) {
+    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
+  }
 }
 
 watch(() => route.params.type, (newType) => {

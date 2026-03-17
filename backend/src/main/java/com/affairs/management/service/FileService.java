@@ -5,4 +5,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface FileService {
     AttachmentVO upload(MultipartFile file, String uploadedBy);
+
+    String getPreviewUrl(String attachmentId);
+
+    String getDownloadUrl(String attachmentId);
 }

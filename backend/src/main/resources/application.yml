@@ -45,11 +45,11 @@ jwt:
   secret: aG9sYXNlY3JldGtleWZvcmFmZmFpcnNtYW5hZ2VtZW50and0c2VjcmV0a2V5MjAyNg==
   expiration: 86400000
 
-# MinIO Configuration (预留，暂不实现)
+# MinIO Configuration
 minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  endpoint: http://127.0.0.1:9090
+  access-key: name
+  secret-key: password
   bucket-name: affairs
 
 # File Upload (临时本地存储)

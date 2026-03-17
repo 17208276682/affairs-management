@@ -46,7 +46,8 @@
                   <el-icon color="#4F6EF7"><Document /></el-icon>
                   <span class="file-name">{{ f.name }}</span>
                   <span class="file-size">{{ formatFileSize(f.size) }}</span>
-                  <el-button link type="primary" size="small">下载</el-button>
+                  <el-button link type="primary" size="small" @click="openPreview(f.id, f.name, f.type)">预览</el-button>
+                  <el-button link type="primary" size="small" @click="openDownload(f.id)">下载</el-button>
                 </div>
               </div>
               <div class="submit-time">
@@ -200,6 +201,15 @@
           </div>
         </div>
       </el-dialog>
+
+      <AttachmentPreviewDialog
+        :visible="previewVisible"
+        :url="previewUrl"
+        :title="previewTitle"
+        :mime-type="previewMimeType"
+        @update:visible="handlePreviewVisibleChange"
+        @download="downloadCurrentPreview"
+      />
     </template>
   </div>
 </template>
@@ -207,8 +217,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore, useOrganizationStore } from '@/stores'
+import { buildPreviewUrl, buildDownloadUrl } from '@/api/file'
 import { TASK_STATUS_MAP, TASK_LEVEL_MAP, PROCESS_ACTION_MAP } from '@/utils/constants'
 import { formatDateTime, formatFileSize } from '@/utils/format'
 import type { User, ProcessAction } from '@/types'
@@ -225,6 +237,11 @@ const pickerSearch = ref('')
 const approving = ref(false)
 const rejecting = ref(false)
 const reassigning = ref(false)
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const previewMimeType = ref('')
+const previewAttachmentId = ref('')
 
 const approveForm = ref({ content: '' })
 const rejectForm = ref({ reason: '' })
@@ -252,6 +269,28 @@ function getActionType(action: ProcessAction) {
 function selectReassign(m: User) {
   reassignForm.value.executor = m
   showPicker.value = false
+}
+
+function openPreview(fileId: string, name?: string, mimeType?: string) {
+  previewAttachmentId.value = fileId
+  previewUrl.value = buildPreviewUrl(fileId)
+  previewTitle.value = name || '附件预览'
+  previewMimeType.value = mimeType || ''
+  previewVisible.value = true
+}
+
+function openDownload(fileId: string) {
+  window.open(buildDownloadUrl(fileId), '_blank')
+}
+
+function downloadCurrentPreview() {
+  if (previewAttachmentId.value) {
+    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
+  }
+}
+
+function handlePreviewVisibleChange(visible: boolean) {
+  previewVisible.value = visible
 }
 
 async function handleApprove() {

@@ -58,6 +58,8 @@
 | MyBatis | 3.0.3 | 数据访问层 |
 | JWT（jjwt） | 0.12.5 | Token 鉴权 |
 | MySQL | 8.x | 关系型数据库 |
+| MinIO | - | 对象存储（附件文件存储） |
+| MinIO Java SDK | 8.5.9 | MinIO 客户端 |
 | Maven | 3.x | 项目构建 |
 | Lombok | 内置 | 实体类简化 |
 
@@ -396,6 +398,7 @@ affairs-management/
 - Java 17
 - Maven 3.x
 - MySQL 8.x
+- MinIO Server（对象存储服务）
 
 ### 1. 初始化数据库
 
@@ -407,7 +410,27 @@ source docs/backend/01_tables.sql
 source docs/backend/02_init_data.sql
 ```
 
-### 2. 启动后端
+### 2. 安装并启动 MinIO
+
+本项目使用 MinIO 作为文件/附件存储后端。
+
+**下载与启动教程**
+
+ [juejin.cn](https://juejin.cn/post/7457807708437004300)
+
+**后端配置**（`backend/src/main/resources/application.yml`）：
+
+```yaml
+minio:
+  endpoint: http://127.0.0.1:9090   # MinIO API 地址
+  access-key: <your-access-key>      # Access Key
+  secret-key: <your-secret-key>      # Secret Key
+  bucket-name: affairs               # 存储桶名称
+```
+
+> 若 Bucket 不存在，系统首次上传文件时会自动创建。
+
+### 3. 启动后端
 
 ```bash
 cd backend
@@ -421,7 +444,7 @@ mvn spring-boot:run
 
 > 后端服务启动后访问：`http://localhost:8080/api`
 
-### 3. 启动前端
+### 4. 启动前端
 
 ```bash
 cd frontend
@@ -436,7 +459,7 @@ npm run dev
 > 前端访问地址：`http://localhost:5173`
 > 已配置 Vite 代理：`/api` → `http://localhost:8080`
 
-### 4. 生产构建
+### 5. 生产构建
 
 ```bash
 cd frontend

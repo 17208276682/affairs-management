@@ -80,4 +80,5 @@ export interface UploadResponse {
   url: string
   size: number
   type: string
+  uploadedAt: string
 }

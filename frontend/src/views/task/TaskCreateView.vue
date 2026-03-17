@@ -87,10 +87,20 @@
             :auto-upload="false"
             :limit="5"
             multiple
+            :on-preview="handleUploadPreview"
           >
             <el-button type="primary" plain>
               <el-icon><UploadFilled /></el-icon>选择文件
             </el-button>
+            <template #file="{ file }">
+              <div class="upload-file-row">
+                <span class="upload-file-name">{{ file.name }}</span>
+                <div class="upload-file-actions">
+                  <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                  <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                </div>
+              </div>
+            </template>
             <template #tip>
               <div class="el-upload__tip">最多上传5个文件，单个文件不超过10MB</div>
             </template>
@@ -133,6 +143,15 @@
         </div>
       </div>
     </el-dialog>
+
+    <AttachmentPreviewDialog
+      :visible="previewVisible"
+      :url="previewUrl"
+      :title="previewTitle"
+      :mime-type="previewMimeType"
+      @update:visible="handlePreviewVisibleChange"
+      @download="downloadCurrentPreview"
+    />
   </div>
 </template>
 
@@ -140,10 +159,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { ElMessage } from 'element-plus'
-import type { FormInstance, UploadUserFile } from 'element-plus'
+import type { FormInstance, UploadUserFile, UploadFile } from 'element-plus'
 import { useUserStore, useTaskStore, useOrganizationStore } from '@/stores'
 import { taskFormRules } from '@/utils/validate'
+import { uploadAttachments, getUploadFilePreview, downloadUploadFile } from '@/utils/attachment'
 import type { User, TaskUrgencyType } from '@/types'
 
 const router = useRouter()
@@ -156,6 +177,12 @@ const submitting = ref(false)
 const showPersonPicker = ref(false)
 const fileList = ref<UploadUserFile[]>([])
 const selectedExecutor = ref<User | null>(null)
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const previewMimeType = ref('')
+const previewFile = ref<UploadUserFile | null>(null)
+const previewRevoke = ref<null | (() => void)>(null)
 
 const form = ref({
   description: '',
@@ -193,12 +220,13 @@ async function handleSubmit() {
   await formRef.value.validate()
   submitting.value = true
   try {
+    const uploadedAttachments = await uploadAttachments(fileList.value)
     await taskStore.createTask({
       description: form.value.description,
       urgencyType: form.value.urgencyType as TaskUrgencyType,
       completionDeadline: form.value.completionDeadline,
       executorId: form.value.executorId,
-      attachments: [],
+      attachments: uploadedAttachments,
     })
     ElMessage.success('事务下达成功！')
     router.push('/task/list/assigned')
@@ -206,6 +234,41 @@ async function handleSubmit() {
     // handled by interceptor
   } finally {
     submitting.value = false
+  }
+}
+
+function handleUploadPreview(file: UploadFile) {
+  const userFile = file as UploadUserFile
+  const source = getUploadFilePreview(userFile)
+  if (!source) return
+  clearPreviewObjectUrl()
+  previewFile.value = userFile
+  previewUrl.value = source.url
+  previewTitle.value = source.name
+  previewMimeType.value = source.type
+  previewRevoke.value = source.revoke
+  previewVisible.value = true
+}
+
+function handleUploadDownload(file: UploadFile) {
+  downloadUploadFile(file as UploadUserFile)
+}
+
+function handlePreviewVisibleChange(visible: boolean) {
+  previewVisible.value = visible
+  if (!visible) clearPreviewObjectUrl()
+}
+
+function clearPreviewObjectUrl() {
+  if (previewRevoke.value) {
+    previewRevoke.value()
+    previewRevoke.value = null
+  }
+}
+
+function downloadCurrentPreview() {
+  if (previewFile.value) {
+    downloadUploadFile(previewFile.value)
   }
 }
 
@@ -311,6 +374,24 @@ onMounted(() => {
   justify-content: flex-end;
   gap: $spacing-sm;
   width: 100%;
+}
+
+.upload-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.upload-file-name {
+  color: $text-regular;
+  font-size: $font-size-sm;
+}
+
+.upload-file-actions {
+  display: flex;
+  gap: 4px;
 }
 
 // 人员选择弹窗

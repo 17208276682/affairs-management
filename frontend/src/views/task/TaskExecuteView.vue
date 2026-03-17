@@ -75,6 +75,7 @@
                   :auto-upload="false"
                   :limit="3"
                   multiple
+                  :on-preview="handleUploadPreview"
                 >
                   <el-button type="primary" plain>
                     <el-icon><Upload /></el-icon>上传附件
@@ -113,6 +114,7 @@
                   :limit="5"
                   multiple
                   drag
+                  :on-preview="handleUploadPreview"
                 >
                   <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
                   <div class="el-upload__text">拖拽或<em>点击上传</em>成果文件</div>
@@ -146,6 +148,14 @@
                   </el-tag>
                 </div>
                 <p class="tl-content">{{ record.content }}</p>
+                <div v-if="record.attachments?.length" class="record-files">
+                  <div v-for="f in record.attachments" :key="f.id" class="record-file-item">
+                    <el-icon><Paperclip /></el-icon>
+                    <span>{{ f.name }}</span>
+                    <el-button link type="primary" size="small" @click="openPreview(f.id, f.name, f.type)">预览</el-button>
+                    <el-button link type="primary" size="small" @click="openDownload(f.id)">下载</el-button>
+                  </div>
+                </div>
               </el-timeline-item>
             </el-timeline>
             <el-empty v-else description="暂无记录" :image-size="60" />
@@ -161,6 +171,15 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <AttachmentPreviewDialog
+        :visible="previewVisible"
+        :url="previewUrl"
+        :title="previewTitle"
+        :mime-type="previewMimeType"
+        @update:visible="handlePreviewVisibleChange"
+        @download="downloadCurrentPreview"
+      />
     </template>
   </div>
 </template>
@@ -168,11 +187,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadUserFile } from 'element-plus'
+import type { UploadUserFile, UploadFile } from 'element-plus'
 import { useTaskStore } from '@/stores'
 import { TASK_STATUS_MAP, TASK_LEVEL_MAP, PROCESS_ACTION_MAP } from '@/utils/constants'
 import { formatDateTime, getTimeRemaining } from '@/utils/format'
+import { buildPreviewUrl, buildDownloadUrl } from '@/api/file'
+import { uploadAttachments, getUploadFilePreview, downloadUploadFile } from '@/utils/attachment'
 import type { ProcessAction } from '@/types'
 
 const router = useRouter()
@@ -185,6 +207,13 @@ const recordLoading = ref(false)
 const submitLoading = ref(false)
 const recordFileList = ref<UploadUserFile[]>([])
 const submitFileList = ref<UploadUserFile[]>([])
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const previewMimeType = ref('')
+const previewAttachmentId = ref('')
+const previewUploadFile = ref<UploadUserFile | null>(null)
+const previewRevoke = ref<null | (() => void)>(null)
 
 const recordForm = ref({ content: '' })
 const submitForm = ref({ content: '' })
@@ -211,7 +240,11 @@ async function handleAddRecord() {
   if (!recordForm.value.content) return
   recordLoading.value = true
   try {
-    await taskStore.addProcessRecord(task.value!.id, { content: recordForm.value.content })
+    const uploadedAttachments = await uploadAttachments(recordFileList.value)
+    await taskStore.addProcessRecord(task.value!.id, {
+      content: recordForm.value.content,
+      attachments: uploadedAttachments,
+    })
     ElMessage.success('处理记录已添加')
     recordForm.value.content = ''
     recordFileList.value = []
@@ -229,7 +262,11 @@ async function handleSubmit() {
   })
   submitLoading.value = true
   try {
-    await taskStore.submitResult(task.value!.id, { content: submitForm.value.content })
+    const uploadedAttachments = await uploadAttachments(submitFileList.value)
+    await taskStore.submitResult(task.value!.id, {
+      content: submitForm.value.content,
+      attachments: uploadedAttachments,
+    })
     ElMessage.success('成果已提交，等待审核')
   } finally {
     submitLoading.value = false
@@ -240,6 +277,56 @@ onMounted(() => {
   const id = route.params.id as string
   taskStore.fetchTaskDetail(id)
 })
+
+function handleUploadPreview(file: UploadFile) {
+  const userFile = file as UploadUserFile
+  const source = getUploadFilePreview(userFile)
+  if (!source) return
+  clearPreviewObjectUrl()
+  previewAttachmentId.value = ''
+  previewUploadFile.value = userFile
+  previewUrl.value = source.url
+  previewTitle.value = source.name
+  previewMimeType.value = source.type
+  previewRevoke.value = source.revoke
+  previewVisible.value = true
+}
+
+function openPreview(fileId: string, name?: string, mimeType?: string) {
+  clearPreviewObjectUrl()
+  previewAttachmentId.value = fileId
+  previewUploadFile.value = null
+  previewUrl.value = buildPreviewUrl(fileId)
+  previewTitle.value = name || '附件预览'
+  previewMimeType.value = mimeType || ''
+  previewVisible.value = true
+}
+
+function openDownload(fileId: string) {
+  window.open(buildDownloadUrl(fileId), '_blank')
+}
+
+function handlePreviewVisibleChange(visible: boolean) {
+  previewVisible.value = visible
+  if (!visible) clearPreviewObjectUrl()
+}
+
+function clearPreviewObjectUrl() {
+  if (previewRevoke.value) {
+    previewRevoke.value()
+    previewRevoke.value = null
+  }
+}
+
+function downloadCurrentPreview() {
+  if (previewUploadFile.value) {
+    downloadUploadFile(previewUploadFile.value)
+    return
+  }
+  if (previewAttachmentId.value) {
+    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -341,6 +428,18 @@ onMounted(() => {
     color: $text-regular;
     margin: 6px 0 0;
     line-height: 1.6;
+  }
+
+  .record-files {
+    margin-top: 8px;
+  }
+
+  .record-file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: $font-size-xs;
+    color: $text-secondary;
   }
 }
 

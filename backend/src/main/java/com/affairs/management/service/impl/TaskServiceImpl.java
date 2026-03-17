@@ -541,7 +541,7 @@ public class TaskServiceImpl implements TaskService {
         AttachmentVO vo = new AttachmentVO();
         vo.setId(att.getId());
         vo.setName(att.getFileName());
-        vo.setUrl(att.getFileUrl());
+        vo.setUrl("/api/files/" + att.getId() + "/preview");
         vo.setType(att.getMimeType());
         vo.setSize(att.getFileSize());
         if (att.getUploadedAt() != null) {

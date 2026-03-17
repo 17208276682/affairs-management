@@ -52,7 +52,8 @@
                   <span class="file-name">{{ file.name }}</span>
                   <span class="file-size">{{ formatFileSize(file.size) }}</span>
                 </div>
-                <el-button link type="primary" size="small">下载</el-button>
+                <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
               </div>
             </div>
           </el-card>
@@ -78,6 +79,8 @@
                   <div v-for="f in record.attachments" :key="f.id" class="record-file">
                     <el-icon><Paperclip /></el-icon>
                     <span>{{ f.name }}</span>
+                    <el-button link type="primary" size="small" @click="openPreview(f.id, f.name, f.type)">预览</el-button>
+                    <el-button link type="primary" size="small" @click="openDownload(f.id)">下载</el-button>
                   </div>
                 </div>
               </el-timeline-item>
@@ -183,14 +186,25 @@
           </el-card>
         </div>
       </div>
+
+      <AttachmentPreviewDialog
+        :visible="previewVisible"
+        :url="previewUrl"
+        :title="previewTitle"
+        :mime-type="previewMimeType"
+        @update:visible="handlePreviewVisibleChange"
+        @download="downloadCurrentPreview"
+      />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { useUserStore, useTaskStore } from '@/stores'
+import { buildPreviewUrl, buildDownloadUrl } from '@/api/file'
 import { TASK_STATUS_MAP, TASK_LEVEL_MAP, PROCESS_ACTION_MAP } from '@/utils/constants'
 import { formatDateTime, formatFileSize, getTimeRemaining } from '@/utils/format'
 
@@ -213,6 +227,33 @@ const canFeedback = computed(() => {
 })
 
 const showActions = computed(() => canExecute.value || canFeedback.value)
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const previewMimeType = ref('')
+const previewAttachmentId = ref('')
+
+function openPreview(fileId: string, name?: string, mimeType?: string) {
+  previewAttachmentId.value = fileId
+  previewUrl.value = buildPreviewUrl(fileId)
+  previewTitle.value = name || '附件预览'
+  previewMimeType.value = mimeType || ''
+  previewVisible.value = true
+}
+
+function openDownload(fileId: string) {
+  window.open(buildDownloadUrl(fileId), '_blank')
+}
+
+function downloadCurrentPreview() {
+  if (previewAttachmentId.value) {
+    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
+  }
+}
+
+function handlePreviewVisibleChange(visible: boolean) {
+  previewVisible.value = visible
+}
 
 onMounted(() => {
   const id = route.params.id as string
