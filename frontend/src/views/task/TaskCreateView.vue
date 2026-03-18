@@ -7,118 +7,117 @@
         </div>
       </template>
 
-      <!-- 事务表单 -->
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="taskFormRules"
-        label-position="top"
-        size="large"
-      >
-        <!-- 事务描述 -->
-        <el-form-item label="事务描述" prop="description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请详细描述事务内容、要求、预期成果等"
-            maxlength="2000"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <!-- 事务紧急性 -->
-        <el-form-item label="事务紧急性" prop="urgencyType">
-          <el-radio-group v-model="form.urgencyType" class="urgency-group">
-            <el-radio-button
-              v-for="opt in urgencyOptions"
-              :key="opt.value"
-              :value="opt.value"
-              :class="['urgency-btn', `urgency-${opt.value}`]"
-            >
-              {{ opt.label }}
-            </el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
-        <!-- 事务完成时间 -->
-        <el-form-item label="事务完成时间" prop="completionDeadline">
-          <div class="deadline-input">
-            <div class="deadline-presets">
-              <el-button size="small" @click="setPresetDeadline(30, 'minute')">半个小时</el-button>
-              <el-button size="small" @click="setPresetDeadline(1, 'hour')">一个小时</el-button>
-              <el-button size="small" @click="setPresetDeadline(1, 'day')">一天</el-button>
-              <el-button size="small" @click="setPresetDeadline(1, 'week')">一周</el-button>
-            </div>
-            <el-date-picker
-              v-model="form.completionDeadline"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss"
-              placeholder="请选择完成时间"
-              style="width: 100%"
-              :shortcuts="deadlineShortcuts"
+      <!-- 事务表单 - 可滚动区域 -->
+      <div class="form-scroll-area">
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="taskFormRules"
+          label-position="top"
+          size="large"
+        >
+          <!-- 事务描述 -->
+          <el-form-item label="事务描述" prop="description">
+            <el-input
+              v-model="form.description"
+              type="textarea"
+              :rows="4"
+              placeholder="请详细描述事务内容、要求、预期成果等"
+              maxlength="2000"
+              show-word-limit
             />
-          </div>
-        </el-form-item>
+          </el-form-item>
 
-        <!-- 事务执行人 -->
-        <el-form-item label="事务执行人" prop="executorId">
-          <div class="executor-selector">
-            <div v-if="selectedExecutor" class="selected-executor" @click="showPersonPicker = true">
-              <el-avatar :size="32">{{ selectedExecutor.name.charAt(0) }}</el-avatar>
-              <div>
-                <div class="executor-name">{{ selectedExecutor.name }}</div>
-                <div class="executor-dept">{{ selectedExecutor.deptName }} · {{ selectedExecutor.position }}</div>
+          <!-- 事务紧急性 -->
+          <el-form-item label="事务紧急性" prop="urgencyType">
+            <el-radio-group v-model="form.urgencyType" class="urgency-group">
+              <el-radio-button
+                v-for="opt in urgencyOptions"
+                :key="opt.value"
+                :value="opt.value"
+                :class="['urgency-btn', `urgency-${opt.value}`]"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+
+          <!-- 事务完成时间 -->
+          <el-form-item label="事务完成时间" prop="completionDeadline">
+            <div class="deadline-input">
+              <div class="deadline-presets">
+                <el-button size="small" @click="setPresetDeadline(30, 'minute')">半个小时</el-button>
+                <el-button size="small" @click="setPresetDeadline(1, 'hour')">一个小时</el-button>
+                <el-button size="small" @click="setPresetDeadline(1, 'day')">一天</el-button>
+                <el-button size="small" @click="setPresetDeadline(1, 'week')">一周</el-button>
               </div>
-              <el-icon class="change-icon"><Edit /></el-icon>
+              <el-date-picker
+                v-model="form.completionDeadline"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="请选择完成时间"
+                style="width: 100%"
+                :shortcuts="deadlineShortcuts"
+              />
             </div>
-            <el-button v-else @click="showPersonPicker = true">
-              <el-icon><Plus /></el-icon>
-              选择执行人
-            </el-button>
-          </div>
-        </el-form-item>
+          </el-form-item>
 
-        <!-- 附件上传 -->
-        <el-form-item label="附件">
-          <el-upload
-            v-model:file-list="fileList"
-            action="#"
-            :auto-upload="false"
-            :limit="5"
-            multiple
-            :on-preview="handleUploadPreview"
-          >
-            <el-button type="primary" plain>
-              <el-icon><UploadFilled /></el-icon>选择文件
-            </el-button>
-            <template #file="{ file }">
-              <div class="upload-file-row">
-                <span class="upload-file-name">{{ file.name }}</span>
-                <div class="upload-file-actions">
-                  <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
-                  <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+          <!-- 事务执行人 -->
+          <el-form-item label="事务执行人" prop="executorId">
+            <div class="executor-selector">
+              <div v-if="selectedExecutor" class="selected-executor" @click="showPersonPicker = true">
+                <el-avatar :size="32">{{ selectedExecutor.name.charAt(0) }}</el-avatar>
+                <div>
+                  <div class="executor-name">{{ selectedExecutor.name }}</div>
+                  <div class="executor-dept">{{ selectedExecutor.deptName }} · {{ selectedExecutor.position }}</div>
                 </div>
+                <el-icon class="change-icon"><Edit /></el-icon>
               </div>
-            </template>
-            <template #tip>
-              <div class="el-upload__tip">最多上传5个文件，单个文件不超过10MB</div>
-            </template>
-          </el-upload>
-        </el-form-item>
+              <el-button v-else @click="showPersonPicker = true">
+                <el-icon><Plus /></el-icon>
+                选择执行人
+              </el-button>
+            </div>
+          </el-form-item>
 
-        <el-divider />
+          <!-- 附件上传 -->
+          <el-form-item label="附件">
+            <el-upload
+              v-model:file-list="fileList"
+              action="#"
+              :auto-upload="false"
+              :limit="5"
+              multiple
+              :on-preview="handleUploadPreview"
+            >
+              <el-button type="primary" plain>
+                <el-icon><UploadFilled /></el-icon>选择文件
+              </el-button>
+              <template #file="{ file }">
+                <div class="upload-file-row">
+                  <span class="upload-file-name">{{ file.name }}</span>
+                  <div class="upload-file-actions">
+                    <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                    <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                  </div>
+                </div>
+              </template>
+              <template #tip>
+                <div class="el-upload__tip">最多上传5个文件，单个文件不超过10MB</div>
+              </template>
+            </el-upload>
+          </el-form-item>
+        </el-form>
+      </div>
 
-        <el-form-item>
-          <div class="form-actions">
-            <el-button @click="router.back()">取消</el-button>
-            <el-button type="primary" :loading="submitting" @click="handleSubmit">
-              <el-icon><Promotion /></el-icon>
-              下达事务
-            </el-button>
-          </div>
-        </el-form-item>
-      </el-form>
+      <!-- 固定底部操作栏 -->
+      <div class="form-footer">
+        <el-button @click="router.back()">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          <el-icon><Promotion /></el-icon>
+          下达事务
+        </el-button>
+      </div>
     </el-card>
 
     <!-- 人员选择弹窗 -->
@@ -282,15 +281,48 @@ onMounted(() => {
   max-width: 720px;
   margin: 0 auto;
   height: 100%;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .form-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  :deep(.el-card__body) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
   .card-header h3 {
     font-size: $font-size-xl;
     font-weight: 600;
     margin: 0;
   }
+}
+
+.form-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-sm;
+  padding: $spacing-md 0;
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
+  background: var(--el-bg-color, #fff);
+  flex-shrink: 0;
 }
 
 // 紧急性选择
@@ -367,13 +399,6 @@ onMounted(() => {
       color: $text-secondary;
     }
   }
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-sm;
-  width: 100%;
 }
 
 .upload-file-row {

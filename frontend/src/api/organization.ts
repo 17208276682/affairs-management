@@ -54,7 +54,7 @@ export function getSelectableMembersApi(deptIds?: string[], scope?: 'subordinate
   return get<User[]>('/member/selectable', { deptIds: deptIds?.join(','), scope })
 }
 
-/** 获取下属成员列表（用于下发任务） */
+/** 获取下属成员列表（用于转交任务） */
 export function getSubordinatesApi() {
   return get<User[]>('/member/selectable', { scope: 'subordinates' })
 }

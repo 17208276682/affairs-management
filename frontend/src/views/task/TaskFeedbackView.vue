@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -329,11 +329,12 @@ async function handleReassign() {
   }
 }
 
-onMounted(() => {
-  const id = route.params.id as string
-  taskStore.fetchTaskDetail(id)
-  orgStore.fetchSelectableMembers()
-})
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    taskStore.fetchTaskDetail(newId as string)
+    orgStore.fetchSelectableMembers()
+  }
+}, { immediate: true })
 </script>
 
 <style lang="scss" scoped>

@@ -335,7 +335,12 @@ async function handleDelete(id: string) {
 async function save() {
   if (!formRef.value) return
   await formRef.value.validate()
-  await validateManagerLimit()
+  try {
+    await validateManagerLimit()
+  } catch (e: any) {
+    ElMessage.warning(e?.message || '校验失败')
+    return
+  }
   saving.value = true
   try {
     const payload: any = {

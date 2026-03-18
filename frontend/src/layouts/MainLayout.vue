@@ -138,7 +138,7 @@
       <el-main class="main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <component :is="Component" :key="route.fullPath" />
           </transition>
         </router-view>
       </el-main>
@@ -183,7 +183,8 @@ onMounted(async () => {
 function handleNotificationClick(n: Notification) {
   notificationStore.markAsRead(n.id)
   if (n.relatedTaskId) {
-    router.push(`/task/detail/${n.relatedTaskId}`)
+    // 跳转到我的代办页面，通过 query 传递需要展示详情的事务 ID
+    router.push({ path: '/task/list/todo', query: { taskId: n.relatedTaskId } })
   }
 }
 

@@ -185,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -273,10 +273,9 @@ async function handleSubmit() {
   }
 }
 
-onMounted(() => {
-  const id = route.params.id as string
-  taskStore.fetchTaskDetail(id)
-})
+watch(() => route.params.id, (newId) => {
+  if (newId) taskStore.fetchTaskDetail(newId as string)
+}, { immediate: true })
 
 function handleUploadPreview(file: UploadFile) {
   const userFile = file as UploadUserFile

@@ -107,23 +107,21 @@ function resolvePageTitle(path: string, fallback: string) {
   return fallback
 }
 
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to) => {
   NProgress.start()
   const title = resolvePageTitle(to.path, String(to.meta.title || '中小企业事务管理数智化系统'))
   document.title = `${title} - TM System`
 
   if (to.meta.requiresAuth === false) {
-    next()
-    return
+    return true
   }
 
   const token = getToken()
   if (!token) {
-    next({ path: '/login', query: { redirect: to.fullPath } })
-    return
+    return { path: '/login', query: { redirect: to.fullPath } }
   }
 
-  // 确保用户信息已加载（仅拉取一次）
+  // 确保用户信息已加载（正常情况下由 main.ts 预加载，这里仅作兜底）
   const userStore = useUserStore()
   if (!userStore.userInfo) {
     try {
@@ -131,8 +129,7 @@ router.beforeEach(async (to, _from, next) => {
     } catch {
       // token 无效，跳转登录
       userStore.logout()
-      next({ path: '/login', query: { redirect: to.fullPath } })
-      return
+      return { path: '/login', query: { redirect: to.fullPath } }
     }
   }
 
@@ -142,18 +139,16 @@ router.beforeEach(async (to, _from, next) => {
   if (role === 'admin') {
     // 管理员只能访问组织管理和个人中心
     if (to.path === '/dashboard' || to.path.startsWith('/task')) {
-      next('/org/dept')
-      return
+      return '/org/dept'
     }
   } else if (role === 'staff') {
     // 普通员工不能访问事务列表（我下达的）
     if (to.path === '/task/list/assigned') {
-      next('/task/list/todo')
-      return
+      return '/task/list/todo'
     }
   }
 
-  next()
+  return true
 })
 
 router.afterEach(() => {

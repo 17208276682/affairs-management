@@ -200,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AttachmentPreviewDialog from '@/components/AttachmentPreviewDialog.vue'
 import { useUserStore, useTaskStore } from '@/stores'
@@ -255,10 +255,9 @@ function handlePreviewVisibleChange(visible: boolean) {
   previewVisible.value = visible
 }
 
-onMounted(() => {
-  const id = route.params.id as string
-  taskStore.fetchTaskDetail(id)
-})
+watch(() => route.params.id, (newId) => {
+  if (newId) taskStore.fetchTaskDetail(newId as string)
+}, { immediate: true })
 </script>
 
 <style lang="scss" scoped>

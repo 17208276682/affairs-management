@@ -13,14 +13,14 @@
           placeholder="搜索事务描述"
           prefix-icon="Search"
           clearable
-          style="width: 260px"
+          class="filter-keyword"
           @change="handleSearch"
         />
         <el-select
           v-model="statusFilter"
           placeholder="状态筛选"
           clearable
-          style="width: 140px"
+          class="filter-select"
           @change="handleSearch"
         >
           <el-option label="已完成" value="finished" />
@@ -31,7 +31,7 @@
           v-model="levelFilter"
           placeholder="级别筛选"
           clearable
-          style="width: 140px"
+          class="filter-select"
           @change="handleSearch"
         >
           <el-option label="重要紧急" value="A" />
@@ -182,13 +182,13 @@
                   <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                 </el-upload>
               </el-form-item>
-              <div class="create-actions">
-                <el-button @click="panelMode = null">取消</el-button>
-                <el-button type="primary" :loading="createSubmitting" @click="handleCreateSubmit">
-                  <el-icon><Promotion /></el-icon>下达事务
-                </el-button>
-              </div>
             </el-form>
+            <div class="create-actions">
+              <el-button @click="panelMode = null">取消</el-button>
+              <el-button type="primary" :loading="createSubmitting" @click="handleCreateSubmit">
+                <el-icon><Promotion /></el-icon>下达事务
+              </el-button>
+            </div>
           </el-card>
         </template>
         <!-- 事务详情 -->
@@ -225,9 +225,9 @@
               <p class="panel-desc">{{ selectedTask.description || selectedTask.title }}</p>
             </div>
 
-            <!-- 1.2 附件下发 -->
+            <!-- 1.2 附件转交 -->
             <div class="panel-section">
-              <div class="panel-label">附件下发</div>
+              <div class="panel-label">附件转交</div>
               <template v-if="selectedTask.attachments && selectedTask.attachments.length">
                 <div v-for="file in selectedTask.attachments" :key="file.id" class="panel-file">
                   <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
@@ -300,12 +300,12 @@
                 </div>
               </template>
 
-              <!-- 已下发、等待下级提交 -->
+              <!-- 已转交、等待下级提交 -->
               <template v-else-if="hasDelegated && !childHasSubmitted">
                 <div class="panel-section">
                   <div class="action-result result-pending">
                     <el-icon :size="18"><Clock /></el-icon>
-                    已下发，等待下级提交
+                    已转交，等待下级提交
                   </div>
                 </div>
               </template>
@@ -344,7 +344,7 @@
                 </div>
               </template>
 
-              <!-- 未下发：可直接提交 或 下发给下级 -->
+              <!-- 未转交：可直接提交 或 转交给下级 -->
               <template v-else>
                 <!-- 提交表单 -->
                 <div class="panel-section">
@@ -364,9 +364,9 @@
                     <el-icon><Upload /></el-icon>提交
                   </el-button>
                 </div>
-                <!-- 下发表单 -->
+                <!-- 转交表单 -->
                 <div class="panel-section">
-                  <div class="panel-label">下发任务</div>
+                  <div class="panel-label">转交任务</div>
                   <el-form label-position="top" class="inline-delegate-form">
                     <el-form-item label="执行人">
                       <div class="executor-selector">
@@ -385,7 +385,7 @@
                     </el-form-item>
                   </el-form>
                   <el-button type="warning" style="width: 100%; margin-top: 4px" :disabled="!delegateExecutorId" :loading="delegatingInline" @click="handleInlineDelegate">
-                    <el-icon><Promotion /></el-icon>下发
+                    <el-icon><Promotion /></el-icon>转交
                   </el-button>
                 </div>
               </template>
@@ -658,8 +658,8 @@
       </template>
     </el-dialog>
 
-    <!-- 下发弹窗 -->
-    <el-dialog v-model="delegateDialogVisible" title="下发任务" width="420px" append-to-body>
+    <!-- 转交弹窗 -->
+    <el-dialog v-model="delegateDialogVisible" title="转交任务" width="420px" append-to-body>
       <el-form label-position="top">
         <el-form-item label="选择执行人">
           <el-select v-model="delegateExecutorId" placeholder="请选择执行人" style="width: 100%">
@@ -674,7 +674,7 @@
       </el-form>
       <template #footer>
         <el-button @click="delegateDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!delegateExecutorId" @click="handleDelegate">确认下发</el-button>
+        <el-button type="primary" :disabled="!delegateExecutorId" @click="handleDelegate">确认转交</el-button>
       </template>
     </el-dialog>
 
@@ -699,7 +699,7 @@
       </div>
     </el-dialog>
 
-    <!-- 下发执行人选择弹窗 -->
+    <!-- 转交执行人选择弹窗 -->
     <el-dialog v-model="showDelegatePicker" title="选择执行人" width="420px" destroy-on-close append-to-body>
       <div class="person-list">
         <div
@@ -897,10 +897,10 @@ const flowNodes = computed(() => {
     let action = actionInfo.label
     let target = ''
     if (r.action === 'create' || r.action === 'assign') {
-      action = '下发'
+      action = '转交'
       target = task.executorName
     } else if (r.action === 'reassign') {
-      action = '下发'
+      action = '转交'
       // 尝试从内容中提取目标人名
       const nameMatch = r.content.match(/分派给(.+?)处理/)
       target = nameMatch ? nameMatch[1] : '下级'
@@ -1229,7 +1229,7 @@ async function handleDelegate() {
   if (!selectedTask.value || !delegateExecutorId.value) return
   try {
     await taskStore.reassignTask(selectedTask.value.id, delegateExecutorId.value)
-    ElMessage.success('下发成功')
+    ElMessage.success('转交成功')
     delegateDialogVisible.value = false
     delegateExecutorId.value = ''
     delegateSelectedExecutor.value = null
@@ -1237,7 +1237,7 @@ async function handleDelegate() {
     selectedTask.value = taskStore.currentTask
     handleSearch()
   } catch {
-    ElMessage.error('下发失败')
+    ElMessage.error('转交失败')
   }
 }
 
@@ -1276,14 +1276,14 @@ async function handleInlineDelegate() {
   delegatingInline.value = true
   try {
     await taskStore.reassignTask(selectedTask.value.id, delegateExecutorId.value)
-    ElMessage.success('下发成功')
+    ElMessage.success('转交成功')
     delegateExecutorId.value = ''
     delegateSelectedExecutor.value = null
     await taskStore.fetchTaskDetail(selectedTask.value.id)
     selectedTask.value = { ...taskStore.currentTask! }
     handleSearch()
   } catch {
-    ElMessage.error('下发失败')
+    ElMessage.error('转交失败')
   } finally {
     delegatingInline.value = false
   }
@@ -1380,8 +1380,21 @@ watch(() => route.params.type, (newType) => {
   handleSearch()
 })
 
-onMounted(() => {
+onMounted(async () => {
   handleSearch()
+  // 从通知跳转来时，自动展示对应事务详情
+  const taskId = route.query.taskId as string
+  if (taskId) {
+    try {
+      await taskStore.fetchTaskDetail(taskId)
+      if (taskStore.currentTask) {
+        selectedTask.value = taskStore.currentTask
+        panelMode.value = 'detail'
+      }
+    } catch {
+      // 事务不存在或无权限，忽略
+    }
+  }
 })
 </script>
 
@@ -1408,15 +1421,22 @@ onMounted(() => {
 
 .filter-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   margin-bottom: $spacing-md;
-  gap: $spacing-sm;
+  gap: $spacing-md;
 
   .filter-left {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px 140px;
     gap: $spacing-sm;
-    flex-wrap: wrap;
+    align-items: center;
+
+    .filter-keyword,
+    .filter-select {
+      width: 100%;
+      min-width: 0;
+    }
   }
 
   .filter-right {

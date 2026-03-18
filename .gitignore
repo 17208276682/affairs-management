@@ -17,7 +17,7 @@ dist-ssr
 backend/target/
 backend/.mvn/wrapper/maven-wrapper.jar
 backend/*.iml
-
+backend/src/main/resources/application.yml
 # ===== Editor =====
 .vscode/*
 !.vscode/extensions.json

@@ -401,7 +401,7 @@ const panelConfig = computed(() => {
     staff: {
       title: '普通员工事务驾驶舱',
       subtitle: '个人执行视角',
-      activityTitle: '上级下发动态',
+      activityTitle: '上级转交动态',
       pieTitle: '待办理事务四个级别',
       barTitle: '个人总事务数 / 已完成数',
       statuses: [
@@ -1423,6 +1423,306 @@ onBeforeUnmount(() => {
   margin-top: 2px;
   font-size: 11px;
   color: #8997aa;
+}
+
+/* ===== 统一到系统页面风格（轻量卡片 + 统一间距） ===== */
+.dashboard-page {
+  gap: $spacing-md;
+}
+
+.dashboard-header {
+  align-items: center;
+  padding: 0;
+
+  h2 {
+    margin: 2px 0 4px;
+    font-size: $font-size-xl;
+    line-height: 1.3;
+    color: $text-primary;
+    font-weight: 600;
+  }
+}
+
+.dashboard-kicker {
+  color: $primary;
+  font-size: $font-size-xs;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.dashboard-meta {
+  color: $text-secondary;
+  font-size: $font-size-sm;
+}
+
+.dashboard-clock {
+  min-width: 176px;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  box-shadow: $shadow-sm;
+  gap: 4px;
+  color: $text-secondary;
+
+  strong {
+    font-size: $font-size-lg;
+    color: $text-primary;
+  }
+}
+
+.dashboard-split {
+  gap: $spacing-md;
+}
+
+.left-panel__inner {
+  gap: $spacing-sm;
+}
+
+.panel-status-row {
+  gap: $spacing-sm;
+}
+
+.status-card {
+  padding: 12px 14px;
+  border-radius: $radius-md;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  box-shadow: $shadow-sm;
+
+  &::after {
+    content: none;
+  }
+}
+
+.status-dot {
+  box-shadow: none;
+}
+
+.status-name {
+  color: $text-regular;
+  font-size: $font-size-sm;
+}
+
+.status-value {
+  font-size: 26px;
+  color: $text-primary;
+}
+
+.status-note {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+}
+
+.panel-middle-row {
+  gap: $spacing-sm;
+}
+
+.panel-card,
+.view-shell {
+  border-radius: $radius-md;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  box-shadow: $shadow-card;
+}
+
+.panel-card {
+  padding: $spacing-md;
+}
+
+.panel-card__header,
+.view-shell__header {
+  margin-bottom: $spacing-sm;
+
+  h3 {
+    margin-top: 2px;
+    font-size: $font-size-md;
+    color: $text-primary;
+    font-weight: 600;
+  }
+}
+
+.panel-card__eyebrow {
+  font-size: $font-size-xs;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: $text-secondary;
+}
+
+.panel-card__badge {
+  padding: 4px 10px;
+  border-radius: $radius-round;
+  background: $bg-hover;
+  color: $text-secondary;
+  font-size: $font-size-xs;
+}
+
+.activity-item {
+  padding: 10px 12px;
+  border-radius: $radius-sm;
+  background: $bg-card;
+  border: 1px solid $border-lighter;
+}
+
+.activity-content {
+  p {
+    color: $text-primary;
+    font-size: $font-size-sm;
+  }
+
+  span {
+    color: $text-secondary;
+    font-size: $font-size-xs;
+  }
+}
+
+.pie-legend__item {
+  border-radius: $radius-sm;
+  background: $bg-card;
+  border: 1px solid $border-lighter;
+
+  strong {
+    color: $text-primary;
+  }
+}
+
+.pie-legend__label {
+  color: $text-regular;
+}
+
+.view-shell {
+  padding: $spacing-md;
+}
+
+.day-header,
+.week-header,
+.month-header {
+  margin-bottom: $spacing-sm;
+
+  .day-title,
+  .week-title,
+  .month-title {
+    color: $text-primary;
+    font-size: $font-size-md;
+  }
+}
+
+.time-grid {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-card;
+}
+
+.time-grid-head {
+  background: $bg-page;
+  border-bottom: 1px solid $border-light;
+}
+
+.time-head-time,
+.time-head-day {
+  border-right: 1px solid $border-light;
+}
+
+.time-head-day {
+  span {
+    color: $text-secondary;
+  }
+
+  strong {
+    color: $text-primary;
+  }
+
+  &.is-today {
+    background: $primary-light;
+  }
+}
+
+.time-head-time {
+  color: $text-secondary;
+}
+
+.time-row {
+  border-bottom: 1px solid $border-lighter;
+}
+
+.time-hour {
+  color: $text-secondary;
+  border-right: 1px solid $border-light;
+  background: $bg-page;
+}
+
+.time-cell {
+  border-right: 1px solid $border-light;
+}
+
+.time-task {
+  border-radius: $radius-xs;
+  background: $bg-page;
+}
+
+.time-task-title {
+  color: $text-primary;
+}
+
+.time-task-meta {
+  color: $text-secondary;
+}
+
+.month-cell {
+  border-radius: $radius-sm;
+  background: $bg-card;
+  border: 1px solid $border-lighter;
+
+  &.other-month {
+    background: $bg-page;
+
+    .month-cell-date {
+      color: $text-placeholder;
+    }
+  }
+
+  &.is-today {
+    border-color: $primary;
+
+    .month-cell-date {
+      color: $primary;
+    }
+  }
+}
+
+.month-cell-date {
+  color: $text-regular;
+}
+
+.month-more {
+  color: $text-secondary;
+}
+
+.quadrant-box {
+  border-radius: $radius-sm;
+  border: 1px solid $border-lighter;
+}
+
+.quadrant-title {
+  color: $text-primary;
+}
+
+.quadrant-count {
+  color: $text-secondary;
+}
+
+.quadrant-item {
+  border-radius: $radius-xs;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.quadrant-item-desc {
+  color: $text-primary;
+}
+
+.quadrant-item-meta {
+  color: $text-secondary;
 }
 
 @media (max-width: 1400px) {
