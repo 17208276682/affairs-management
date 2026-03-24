@@ -36,6 +36,12 @@ public class Task {
     private String status;
     /** 父任务ID（向下分派） */
     private String parentTaskId;
+    /** 下达人当时的角色上下文 */
+    private String assignerRole;
+    /** 下达人当时的上下文部门ID */
+    private String assignerDeptId;
+    /** 执行人应在哪个部门上下文下看到此任务 */
+    private String executorContextDeptId;
     /** 创建时间 */
     private LocalDateTime createdAt;
     /** 更新时间 */

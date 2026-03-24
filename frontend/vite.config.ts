@@ -23,6 +23,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    outDir: path.resolve(__dirname, '../backend/src/main/resources/static'),
+    emptyOutDir: true,
+  },
   css: {
     preprocessorOptions: {
       scss: {

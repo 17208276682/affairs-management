@@ -33,3 +33,25 @@ export function getStatsTrendApi(range: 'week' | 'month' | 'quarter') {
 export function getRecentActivitiesApi() {
   return get<{ id: string; type: string; content: string; time: string }[]>('/stats/recent-activities')
 }
+
+/** 月度趋势（管理员统计页） */
+export function getMonthlyTrendApi() {
+  return get<TrendData>('/stats/monthly-trend')
+}
+
+/** 导出事务报表 Excel */
+export function exportStatsExcel(period: string) {
+  const token = localStorage.getItem('tm_token') || ''
+  return fetch(`/api/stats/export?period=${encodeURIComponent(period)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then(res => res.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `事务报表_${period}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+}

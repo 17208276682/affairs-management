@@ -87,6 +87,20 @@
         SELECT MAX(id) FROM departments
     </select>
 
+    <select id="selectMaxSortByParentId" resultType="int">
+        SELECT MAX(sort_order) FROM departments
+        <where>
+            <choose>
+                <when test="parentId != null and parentId != ''">
+                    parent_id = #{parentId}
+                </when>
+                <otherwise>
+                    parent_id IS NULL
+                </otherwise>
+            </choose>
+        </where>
+    </select>
+
     <update id="updateMemberCount">
         UPDATE departments SET member_count = #{count} WHERE id = #{id}
     </update>

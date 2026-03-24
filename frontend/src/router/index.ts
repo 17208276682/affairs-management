@@ -30,12 +30,6 @@ const routes: RouteRecordRaw[] = [
       },
       // --- 事务管理 ---
       {
-        path: 'task/create',
-        name: 'TaskCreate',
-        component: () => import('@/views/task/TaskCreateView.vue'),
-        meta: { title: '新建事务', icon: 'EditPen' },
-      },
-      {
         path: 'task/list/:type?',
         name: 'TaskList',
         component: () => import('@/views/task/TaskListView.vue'),
@@ -64,19 +58,26 @@ const routes: RouteRecordRaw[] = [
         path: 'org/tree',
         name: 'OrgTree',
         component: () => import('@/views/organization/OrgTreeView.vue'),
-        meta: { title: '组织架构', icon: 'Share', parent: '组织管理', roles: ['admin', 'manager'] },
+        meta: { title: '组织架构', icon: 'Share', parent: '组织管理', roles: ['ceo', 'manager'] },
       },
       {
         path: 'org/dept',
         name: 'DeptManage',
         component: () => import('@/views/organization/DeptManageView.vue'),
-        meta: { title: '组织管理', icon: 'OfficeBuilding', roles: ['admin'] },
+        meta: { title: '组织管理', icon: 'OfficeBuilding', roles: ['admin', 'ceo'] },
       },
       {
         path: 'org/member',
         name: 'MemberManage',
         component: () => import('@/views/organization/MemberManageView.vue'),
-        meta: { title: '人员管理', icon: 'User', roles: ['admin'] },
+        meta: { title: '人员管理', icon: 'User', roles: ['admin', 'ceo'] },
+      },
+      // --- 事务统计 ---
+      {
+        path: 'statistics',
+        name: 'Statistics',
+        component: () => import('@/views/statistics/StatisticsView.vue'),
+        meta: { title: '事务统计', icon: 'DataAnalysis', roles: ['admin', 'ceo'] },
       },
       // --- 个人中心 ---
       {
@@ -134,16 +135,21 @@ router.beforeEach(async (to) => {
   }
 
   // 角色重定向逻辑
-  const role = userStore.userInfo?.role
+  const role = userStore.currentRole
 
   if (role === 'admin') {
     // 管理员只能访问组织管理和个人中心
     if (to.path === '/dashboard' || to.path.startsWith('/task')) {
       return '/org/dept'
     }
+  } else if (role === 'ceo' || role === 'director') {
+    // 总经理/副总经理使用高级管理者界面
+    if (to.path.startsWith('/org/dept') || to.path.startsWith('/org/member') || to.path.startsWith('/statistics')) {
+      return '/dashboard'
+    }
   } else if (role === 'staff') {
-    // 普通员工不能访问事务列表（我下达的）
-    if (to.path === '/task/list/assigned') {
+    // 普通员工不能访问事务列表（我下达的）和统计
+    if (to.path === '/task/list/assigned' || to.path.startsWith('/statistics')) {
       return '/task/list/todo'
     }
   }

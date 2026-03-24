@@ -10,5 +10,6 @@ public interface StatisticsService {
     List<LevelStats> getStatsByLevel(String userId, String role, List<String> managedDeptIds);
     List<PersonStats> getStatsByPerson(String userId, String role, List<String> managedDeptIds);
     TrendData getTrend(String range, String userId, String role, List<String> managedDeptIds);
+    TrendData getMonthlyTrend(String userId, String role, List<String> managedDeptIds);
     List<ActivityVO> getRecentActivities(String userId, String role, List<String> managedDeptIds);
 }

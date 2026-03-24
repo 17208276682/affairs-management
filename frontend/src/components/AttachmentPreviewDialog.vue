@@ -16,7 +16,6 @@
     </div>
     <template #footer>
       <el-button @click="emit('update:visible', false)">关闭</el-button>
-      <el-button type="primary" @click="emit('download')">下载</el-button>
     </template>
   </el-dialog>
 </template>
@@ -33,7 +32,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
-  (e: 'download'): void
 }>()
 
 const ext = computed(() => {
@@ -54,9 +52,12 @@ const previewType = computed<'image' | 'pdf' | 'text' | 'video' | 'audio' | 'uns
   }
   if (
     mime.startsWith('text/')
-    || mime.includes('json')
-    || mime.includes('xml')
-    || mime.includes('html')
+    || mime === 'application/json'
+    || mime === 'application/xml'
+    || mime === 'application/javascript'
+    || mime.endsWith('+json')
+    || mime.endsWith('+xml')
+    || mime === 'text/html'
     || ['txt', 'md', 'json', 'xml', 'csv', 'log', 'html', 'htm'].includes(ext.value)
   ) {
     return 'text'
@@ -71,9 +72,12 @@ const previewType = computed<'image' | 'pdf' | 'text' | 'video' | 'audio' | 'uns
 })
 
 const unsupportedHint = computed(() => {
-  if (!props.url) return '暂无可预览内容'
+  if (!props.url) {
+    const extLabel = ext.value ? `.${ext.value}` : '当前文件'
+    return `${extLabel} 暂不支持在线预览，可下载查看完整内容`
+  }
   const extLabel = ext.value ? `.${ext.value}` : '当前文件'
-  return `${extLabel} 暂不支持在线预览，请点击下载`
+  return `${extLabel} 暂不支持在线预览，可下载查看完整内容`
 })
 </script>
 

@@ -41,7 +41,17 @@ public class StatisticsServiceImpl implements StatisticsService {
         overview.setPendingTasks(toInt(raw.get("pendingTasks")));
         overview.setInProgressTasks(toInt(raw.get("inProgressTasks")));
         overview.setCompletedTasks(toInt(raw.get("completedTasks")));
+        overview.setRejectedTasks(toInt(raw.get("rejectedTasks")));
         overview.setOverdueTasks(toInt(raw.get("overdueTasks")));
+        overview.setCancelledTasks(toInt(raw.get("cancelledTasks")));
+
+        // 新增字段
+        overview.setOnTimeCompleted(toInt(raw.get("onTimeCompleted")));
+        overview.setOverdueCompleted(toInt(raw.get("overdueCompleted")));
+        overview.setFailedReview(toInt(raw.get("failedReview")));
+        overview.setTodoTasks(toInt(raw.get("todoTasks")));
+        overview.setOverdueUnfinished(toInt(raw.get("overdueUnfinished")));
+        overview.setSubmittedTasks(toInt(raw.get("submittedTasks")));
 
         int total = overview.getTotalTasks();
         if (total > 0) {
@@ -123,9 +133,47 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     @Override
-    public List<ActivityVO> getRecentActivities(String userId, String role, List<String> managedDeptIds) {
+    public TrendData getMonthlyTrend(String userId, String role, List<String> managedDeptIds) {
         List<String> scopeUserIds = getScopeUserIds(userId, role, managedDeptIds);
-        List<TaskProcessRecord> records = recordMapper.selectRecent(20, scopeUserIds);
+        List<Map<String, Object>> rawData = taskMapper.selectMonthlyTrend(scopeUserIds);
+
+        TrendData trend = new TrendData();
+        List<String> months = new ArrayList<>();
+        List<Integer> assigned = new ArrayList<>();
+        List<Integer> completed = new ArrayList<>();
+
+        for (Map<String, Object> row : rawData) {
+            months.add(row.get("month").toString());
+            assigned.add(toInt(row.get("assigned")));
+            completed.add(toInt(row.get("completed")));
+        }
+
+        trend.setDates(months);
+        trend.setCreated(assigned);
+        trend.setCompleted(completed);
+        return trend;
+    }
+
+    @Override
+    public List<ActivityVO> getRecentActivities(String userId, String role, List<String> managedDeptIds) {
+        boolean checkAssigner;
+        boolean checkExecutor;
+
+        if ("director".equals(role) || "ceo".equals(role) || "admin".equals(role)) {
+            // 总经办：只看自己下发的事务的动态
+            checkAssigner = true;
+            checkExecutor = false;
+        } else if ("manager".equals(role)) {
+            // 负责人：看自己下发的 + 别人给自己的
+            checkAssigner = true;
+            checkExecutor = true;
+        } else {
+            // 普通员工：只看别人给自己的事务动态
+            checkAssigner = false;
+            checkExecutor = true;
+        }
+
+        List<TaskProcessRecord> records = recordMapper.selectRecentByRelation(20, userId, checkAssigner, checkExecutor);
 
         return records.stream().map(r -> {
             ActivityVO vo = new ActivityVO();
@@ -149,8 +197,8 @@ public class StatisticsServiceImpl implements StatisticsService {
      * 根据角色获取统计数据范围的用户ID列表
      */
     private List<String> getScopeUserIds(String userId, String role, List<String> managedDeptIds) {
-        if ("director".equals(role)) {
-            // 总经办：全局范围，不传 userIds 则不做过滤
+        if ("admin".equals(role) || "ceo".equals(role) || "director".equals(role)) {
+            // 管理员 / CEO / 高级管理者：全局范围
             return null;
         } else if ("manager".equals(role)) {
             // 部门经理：管辖部门内的用户

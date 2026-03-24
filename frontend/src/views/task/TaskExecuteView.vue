@@ -80,6 +80,16 @@
                   <el-button type="primary" plain>
                     <el-icon><Upload /></el-icon>上传附件
                   </el-button>
+                  <template #file="{ file }">
+                    <div class="upload-file-row">
+                      <span class="upload-file-name">{{ file.name }}</span>
+                      <div class="upload-file-actions">
+                        <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                        <el-button link type="danger" size="small" @click="removeRecordUploadFile(file)">取消</el-button>
+                      </div>
+                    </div>
+                  </template>
                 </el-upload>
               </el-form-item>
               <el-form-item>
@@ -113,11 +123,21 @@
                   :auto-upload="false"
                   :limit="5"
                   multiple
-                  drag
                   :on-preview="handleUploadPreview"
                 >
-                  <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-                  <div class="el-upload__text">拖拽或<em>点击上传</em>成果文件</div>
+                  <el-button type="primary" plain>
+                    <el-icon><UploadFilled /></el-icon>上传附件
+                  </el-button>
+                  <template #file="{ file }">
+                    <div class="upload-file-row">
+                      <span class="upload-file-name">{{ file.name }}</span>
+                      <div class="upload-file-actions">
+                        <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                        <el-button link type="danger" size="small" @click="removeSubmitUploadFile(file)">取消</el-button>
+                      </div>
+                    </div>
+                  </template>
                 </el-upload>
               </el-form-item>
               <el-form-item>
@@ -178,7 +198,6 @@
         :title="previewTitle"
         :mime-type="previewMimeType"
         @update:visible="handlePreviewVisibleChange"
-        @download="downloadCurrentPreview"
       />
     </template>
   </div>
@@ -214,6 +233,27 @@ const previewMimeType = ref('')
 const previewAttachmentId = ref('')
 const previewUploadFile = ref<UploadUserFile | null>(null)
 const previewRevoke = ref<null | (() => void)>(null)
+
+function isPreviewable(name?: string, mimeType?: string) {
+  const ext = (name || '').split('.').pop()?.toLowerCase() || ''
+  const mime = (mimeType || '').toLowerCase()
+
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) return true
+  if (mime === 'application/pdf' || ext === 'pdf') return true
+  if (
+    mime.startsWith('text/')
+    || mime === 'application/json'
+    || mime === 'application/xml'
+    || mime === 'application/javascript'
+    || mime.endsWith('+json')
+    || mime.endsWith('+xml')
+    || mime === 'text/html'
+    || ['txt', 'md', 'json', 'xml', 'csv', 'log', 'html', 'htm'].includes(ext)
+  ) return true
+  if (mime.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return true
+  if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(ext)) return true
+  return false
+}
 
 const recordForm = ref({ content: '' })
 const submitForm = ref({ content: '' })
@@ -291,11 +331,35 @@ function handleUploadPreview(file: UploadFile) {
   previewVisible.value = true
 }
 
+function handleUploadDownload(file: UploadFile) {
+  downloadUploadFile(file as UploadUserFile)
+}
+
+function removeRecordUploadFile(file: UploadFile) {
+  const uploadFile = file as UploadUserFile
+  recordFileList.value = recordFileList.value.filter(item => {
+    if (uploadFile.uid != null && item.uid != null) {
+      return item.uid !== uploadFile.uid
+    }
+    return !(item.name === uploadFile.name && item.size === uploadFile.size)
+  })
+}
+
+function removeSubmitUploadFile(file: UploadFile) {
+  const uploadFile = file as UploadUserFile
+  submitFileList.value = submitFileList.value.filter(item => {
+    if (uploadFile.uid != null && item.uid != null) {
+      return item.uid !== uploadFile.uid
+    }
+    return !(item.name === uploadFile.name && item.size === uploadFile.size)
+  })
+}
+
 function openPreview(fileId: string, name?: string, mimeType?: string) {
   clearPreviewObjectUrl()
   previewAttachmentId.value = fileId
   previewUploadFile.value = null
-  previewUrl.value = buildPreviewUrl(fileId)
+  previewUrl.value = isPreviewable(name, mimeType) ? buildPreviewUrl(fileId) : ''
   previewTitle.value = name || '附件预览'
   previewMimeType.value = mimeType || ''
   previewVisible.value = true
@@ -314,16 +378,6 @@ function clearPreviewObjectUrl() {
   if (previewRevoke.value) {
     previewRevoke.value()
     previewRevoke.value = null
-  }
-}
-
-function downloadCurrentPreview() {
-  if (previewUploadFile.value) {
-    downloadUploadFile(previewUploadFile.value)
-    return
-  }
-  if (previewAttachmentId.value) {
-    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
   }
 }
 </script>
@@ -440,6 +494,28 @@ function downloadCurrentPreview() {
     font-size: $font-size-xs;
     color: $text-secondary;
   }
+}
+
+.upload-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.upload-file-name {
+  flex: 1;
+  color: $text-regular;
+  font-size: $font-size-sm;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.upload-file-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .countdown-card {

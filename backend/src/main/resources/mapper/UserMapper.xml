@@ -47,6 +47,7 @@
     <select id="selectMemberList" resultMap="UserResultMap">
         SELECT * FROM users
         <where>
+            status = 1
             <if test="deptId != null and deptId != ''">
                 AND dept_id = #{deptId}
             </if>
@@ -65,6 +66,7 @@
     <select id="countMembers" resultType="long">
         SELECT COUNT(*) FROM users
         <where>
+            status = 1
             <if test="deptId != null and deptId != ''">
                 AND dept_id = #{deptId}
             </if>

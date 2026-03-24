@@ -26,11 +26,19 @@ export interface StatsOverview {
   pendingTasks: number
   inProgressTasks: number
   completedTasks: number
+  rejectedTasks: number
   overdueTasks: number
+  cancelledTasks: number
   overdueRate: number
   completionRate: number
   avgResponseHours: number
   avgCompletionHours: number
+  onTimeCompleted: number
+  overdueCompleted: number
+  failedReview: number
+  todoTasks: number
+  overdueUnfinished: number
+  submittedTasks: number
 }
 
 /** 部门统计 */
@@ -64,6 +72,12 @@ export interface PersonStats {
   completionRate: number
   avgResponseHours: number
   avgCompletionHours: number
+  onTimeCompleted: number
+  overdueCompleted: number
+  failedReview: number
+  todoTasks: number
+  overdueUnfinished: number
+  cancelledTasks: number
 }
 
 /** 趋势数据 */

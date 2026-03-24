@@ -13,6 +13,7 @@ import com.affairs.management.enums.UrgencyType;
 import com.affairs.management.mapper.*;
 import com.affairs.management.service.NotificationService;
 import com.affairs.management.service.TaskService;
+import com.affairs.management.mapper.UserManagedDeptMapper;
 import com.affairs.management.util.IdGenerator;
 import com.affairs.management.util.TaskLevelCalculator;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +35,8 @@ public class TaskServiceImpl implements TaskService {
     private final RecordAttachmentMapper recordAttachmentMapper;
     private final AttachmentMapper attachmentMapper;
     private final UserMapper userMapper;
-    private final UserManagedDeptMapper userManagedDeptMapper;
     private final DeptMapper deptMapper;
+    private final UserManagedDeptMapper userManagedDeptMapper;
     private final NotificationService notificationService;
     private final IdGenerator idGenerator;
 
@@ -43,13 +44,13 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public TaskVO createTask(CreateTaskRequest request, String currentUserId) {
+    public TaskVO createTask(CreateTaskRequest request, String currentUserId, String currentRole, String currentDeptId) {
         User assigner = userMapper.selectById(currentUserId);
         User executor = userMapper.selectById(request.getExecutorId());
         if (executor == null) {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
         }
-        validateAssignableExecutor(assigner, executor);
+        validateAssignableExecutor(assigner, executor, currentRole, currentDeptId);
 
         // 解析紧急类型
         UrgencyType urgencyType = UrgencyType.fromCode(request.getUrgencyType());
@@ -91,6 +92,9 @@ public class TaskServiceImpl implements TaskService {
         task.setResponseDeadline(responseDeadline);
         task.setCompletionDeadline(completionDeadline);
         task.setStatus("pending");
+        task.setAssignerRole(currentRole);
+        task.setAssignerDeptId(currentDeptId);
+        task.setExecutorContextDeptId(resolveExecutorContextDeptId(executor, currentDeptId));
         taskMapper.insert(task);
 
         // 关联附件
@@ -104,7 +108,7 @@ public class TaskServiceImpl implements TaskService {
         record.setTaskId(task.getId());
         record.setOperatorId(currentUserId);
         record.setAction("create");
-        record.setContent("创建事务：" + title);
+        record.setContent("下发给 " + executor.getName());
         recordMapper.insert(record);
 
         // 通知执行人
@@ -121,7 +125,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public PaginatedData<TaskVO> getTaskList(TaskListParams params, String currentUserId,
-                                              String role, List<String> managedDeptIds) {
+                                              String role, String currentDeptId, List<String> managedDeptIds) {
         // 获取管辖范围内的用户IDs（用于 scope 查询）
         List<String> managedUserIds = null;
         if ("scope".equals(params.getType()) && managedDeptIds != null && !managedDeptIds.isEmpty()) {
@@ -131,12 +135,12 @@ public class TaskServiceImpl implements TaskService {
 
         int offset = (params.getPage() - 1) * params.getPageSize();
         List<Task> tasks = taskMapper.selectTaskList(
-                params.getType(), currentUserId, role, managedUserIds,
+            params.getType(), currentUserId, role, currentDeptId, managedUserIds,
                 params.getStatus(), params.getLevel(), params.getKeyword(),
                 offset, params.getPageSize());
 
         long total = taskMapper.countTaskList(
-                params.getType(), currentUserId, role, managedUserIds,
+            params.getType(), currentUserId, role, currentDeptId, managedUserIds,
                 params.getStatus(), params.getLevel(), params.getKeyword());
 
         List<TaskVO> voList = tasks.stream().map(this::toTaskVO).collect(Collectors.toList());
@@ -153,11 +157,11 @@ public class TaskServiceImpl implements TaskService {
         List<ProcessRecordVO> processRecords = getProcessRecords(taskId);
         List<String> descendantIds = taskMapper.selectAllDescendantIds(taskId);
         if (descendantIds != null && !descendantIds.isEmpty()) {
-            List<ProcessRecordVO> childSubmitRecords = recordMapper.selectByTaskIds(descendantIds).stream()
-                    .filter(r -> "submit".equals(r.getAction()))
+            List<ProcessRecordVO> childRecords = recordMapper.selectByTaskIds(descendantIds).stream()
+                    .filter(r -> !"create".equals(r.getAction()))
                     .map(this::toRecordVO)
                     .collect(Collectors.toList());
-            processRecords.addAll(childSubmitRecords);
+            processRecords.addAll(childRecords);
             processRecords.sort(Comparator.comparing(ProcessRecordVO::getCreatedAt));
         }
 
@@ -228,6 +232,19 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskMapper.selectById(taskId);
         validateTaskOperation(task, currentUserId, true, "pending", "accepted", "in_progress", "overdue");
 
+        // 检查子任务状态 - 所有直接子任务必须已提交
+        List<String> childTaskIds = taskMapper.selectChildTaskIds(taskId);
+        if (childTaskIds != null && !childTaskIds.isEmpty()) {
+            for (String childId : childTaskIds) {
+                Task childTask = taskMapper.selectById(childId);
+                if (childTask != null && !"submitted".equals(childTask.getStatus())
+                        && !"approved".equals(childTask.getStatus())) {
+                    throw new BusinessException(ErrorCode.TASK_STATUS_INVALID,
+                            "存在未提交的子任务，请等待所有子任务提交后再操作");
+                }
+            }
+        }
+
         // 如果是 pending 状态直接提交，自动记录接收时间
         if ("pending".equals(task.getStatus())) {
             task.setResponseTime(LocalDateTime.now());
@@ -241,14 +258,13 @@ public class TaskServiceImpl implements TaskService {
         record.setTaskId(taskId);
         record.setOperatorId(currentUserId);
         record.setAction("submit");
-        record.setContent(request.getContent() != null ? request.getContent() : "提交成果");
+        User submitTarget = userMapper.selectById(task.getAssignerId());
+        record.setContent(request.getContent() != null && !request.getContent().isBlank() ? request.getContent() : "提交给 " + (submitTarget != null ? submitTarget.getName() : "上级"));
         recordMapper.insert(record);
 
         if (request.getAttachmentIds() != null && !request.getAttachmentIds().isEmpty()) {
             recordAttachmentMapper.batchInsert(recordId, request.getAttachmentIds());
         }
-
-        // 通知下达人
         User executor = userMapper.selectById(currentUserId);
         notificationService.createNotification(
                 task.getAssignerId(), "事务成果已提交",
@@ -263,6 +279,9 @@ public class TaskServiceImpl implements TaskService {
     public TaskVO approveTask(String taskId, ApproveRequest request, String currentUserId) {
         Task task = taskMapper.selectById(taskId);
         validateTaskOperation(task, currentUserId, false, "submitted");
+        if (task.getParentTaskId() != null) {
+            throw new BusinessException(ErrorCode.TASK_STATUS_INVALID, "转交子任务不能直接审核，请逐级提交后由根任务审核");
+        }
 
         task.setStatus("approved");
         task.setCompletionTime(LocalDateTime.now());
@@ -288,6 +307,9 @@ public class TaskServiceImpl implements TaskService {
     public TaskVO rejectTask(String taskId, RejectRequest request, String currentUserId) {
         Task task = taskMapper.selectById(taskId);
         validateTaskOperation(task, currentUserId, false, "submitted");
+        if (task.getParentTaskId() != null) {
+            throw new BusinessException(ErrorCode.TASK_STATUS_INVALID, "转交子任务不能直接审核，请逐级提交后由根任务审核");
+        }
 
         task.setStatus("rejected");
         taskMapper.update(task);
@@ -315,7 +337,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public TaskVO reassignTask(String taskId, ReassignRequest request, String currentUserId) {
+    public TaskVO reassignTask(String taskId, ReassignRequest request, String currentUserId, String currentRole, String currentDeptId) {
         Task parentTask = taskMapper.selectById(taskId);
         if (parentTask == null) {
             throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
@@ -326,7 +348,7 @@ public class TaskServiceImpl implements TaskService {
         if (newExecutor == null) {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
         }
-        validateAssignableExecutor(assigner, newExecutor);
+        validateAssignableExecutor(assigner, newExecutor, currentRole, currentDeptId);
 
         // 创建子任务
         Task childTask = new Task();
@@ -342,11 +364,24 @@ public class TaskServiceImpl implements TaskService {
         childTask.setCompletionDeadline(parentTask.getCompletionDeadline());
         childTask.setStatus("pending");
         childTask.setParentTaskId(taskId);
+        childTask.setAssignerRole(currentRole);
+        childTask.setAssignerDeptId(currentDeptId);
+        childTask.setExecutorContextDeptId(resolveExecutorContextDeptId(newExecutor, currentDeptId));
         taskMapper.insert(childTask);
 
-        // 流程记录
+        // 复制父任务的附件到子任务
+        List<String> parentAttachmentIds = taskAttachmentMapper.selectAttachmentIdsByTaskId(taskId);
+        if (parentAttachmentIds != null && !parentAttachmentIds.isEmpty()) {
+            taskAttachmentMapper.batchInsert(childTask.getId(), parentAttachmentIds);
+        }
+
+        // 流程记录（父任务）
         createRecord(taskId, currentUserId, "reassign",
-                "向下分派给 " + newExecutor.getName());
+                "转交给 " + newExecutor.getName());
+
+        // 流程记录（子任务，让执行人能看到下发记录）
+        createRecord(childTask.getId(), currentUserId, "create",
+                "下发给 " + newExecutor.getName());
 
         // 通知新执行人
         notificationService.createNotification(
@@ -431,34 +466,119 @@ public class TaskServiceImpl implements TaskService {
         recordMapper.insert(record);
     }
 
-    private void validateAssignableExecutor(User assigner, User executor) {
+    private void validateAssignableExecutor(User assigner, User executor, String currentRole, String currentDeptId) {
         if (assigner == null || executor == null) {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID);
         }
-
-        if ("director".equals(assigner.getRole())) {
-            List<String> childDeptIds = deptMapper.selectChildren(assigner.getDeptId())
-                    .stream()
-                    .map(Department::getId)
-                    .collect(Collectors.toList());
-            boolean valid = "manager".equals(executor.getRole())
-                    && childDeptIds.contains(executor.getDeptId());
-            if (!valid) {
-                throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "高级管理者仅可下发给下一级中级管理者");
-            }
-            return;
+        if (assigner.getId().equals(executor.getId())) {
+            throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "不能给自己下发任务");
+        }
+        if (currentRole == null || currentRole.isBlank()) {
+            throw new BusinessException(ErrorCode.TASK_NO_PERMISSION, "当前角色无下发权限");
+        }
+        if (currentDeptId == null || currentDeptId.isBlank()) {
+            throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "当前角色未绑定所属部门");
         }
 
-        if ("manager".equals(assigner.getRole())) {
-            boolean valid = "staff".equals(executor.getRole())
-                    && Objects.equals(assigner.getDeptId(), executor.getDeptId());
-            if (!valid) {
-                throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "中级管理者仅可下发给本部门普通员工");
+        // 获取下发人兼任负责人的部门（通过 user_managed_departments）
+        List<String> assignerManagedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(assigner.getId());
+        boolean valid = false;
+
+        // 路径1: 作为 ceo/director，下发给下一级部门的负责人（排除自己兼任负责人的部门）
+        if ("ceo".equals(currentRole) || "director".equals(currentRole)) {
+            List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
+            for (Department childDept : childDepts) {
+                // 自己兼任负责人的部门不能从此路径下发
+                if (assignerManagedDeptIds.contains(childDept.getId())) {
+                    continue;
+                }
+                if (isDeptHead(executor, childDept.getId())) {
+                    valid = true;
+                    break;
+                }
             }
-            return;
         }
 
-        throw new BusinessException(ErrorCode.TASK_NO_PERMISSION, "当前角色无下发权限");
+        // 路径2: 作为兼任部门负责人，下发给下一级（仅当当前角色为 manager 时）
+        if (!valid && "manager".equals(currentRole)) {
+            for (String managedDeptId : assignerManagedDeptIds) {
+                Department managedDept = deptMapper.selectById(managedDeptId);
+                if (managedDept == null) continue;
+                if (managedDept.getLevel() == null || managedDept.getLevel() < 1) continue;
+                if (managedDeptId.equals(currentDeptId)) continue;
+                if (isValidNextLevelDispatch(assigner, executor, managedDeptId)) {
+                    valid = true;
+                    break;
+                }
+            }
+        }
+
+        // 路径3: 作为普通 manager，根据当前部门下发
+        if (!valid && "manager".equals(currentRole)) {
+            valid = isValidNextLevelDispatch(assigner, executor, currentDeptId);
+        }
+
+        if (!valid) {
+            throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "只能下发给直接下一级人员");
+        }
+    }
+
+    /**
+     * 判断用户是否是某部门的负责人
+     */
+    private boolean isDeptHead(User user, String deptId) {
+        // 方式1: role=manager 且直接属于该部门
+        if ("manager".equals(user.getRole()) && deptId.equals(user.getDeptId())) {
+            return true;
+        }
+        // 方式2: ceo/director 通过 user_managed_departments 兼任负责人
+        if ("ceo".equals(user.getRole()) || "director".equals(user.getRole())) {
+            List<String> managedDepts = userManagedDeptMapper.selectDeptIdsByUserId(user.getId());
+            return managedDepts.contains(deptId);
+        }
+        return false;
+    }
+
+    /**
+     * 判断从某部门向下派发是否合法（只能一层）
+     */
+    private boolean isValidNextLevelDispatch(User assigner, User executor, String deptId) {
+        List<Department> childDepts = deptMapper.selectChildren(deptId);
+        if (!childDepts.isEmpty()) {
+            // 有子部门 → 只能下发给子部门负责人
+            for (Department childDept : childDepts) {
+                if (isDeptHead(executor, childDept.getId())) {
+                    return true;
+                }
+            }
+        } else {
+            // 没有子部门 → 只能下发给本部门 staff
+            if ("staff".equals(executor.getRole()) && deptId.equals(executor.getDeptId())
+                    && !executor.getId().equals(assigner.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 确定执行人应在哪个部门上下文下看到此任务。
+     * 对于 staff/manager：直接取其所属部门。
+     * 对于 ceo/director 兼任部门负责人：找出其管理的、且是下达人上下文部门子部门的那个部门。
+     */
+    private String resolveExecutorContextDeptId(User executor, String assignerDeptId) {
+        if ("staff".equals(executor.getRole()) || "manager".equals(executor.getRole())) {
+            return executor.getDeptId();
+        }
+        // ceo/director 作为执行人：找到他管理的、属于 assignerDeptId 的子部门
+        List<String> managedDepts = userManagedDeptMapper.selectDeptIdsByUserId(executor.getId());
+        List<Department> children = deptMapper.selectChildren(assignerDeptId);
+        for (Department child : children) {
+            if (managedDepts.contains(child.getId())) {
+                return child.getId();
+            }
+        }
+        return executor.getDeptId();
     }
 
     private TaskVO toTaskVO(Task task) {

@@ -5,12 +5,15 @@ import com.affairs.management.dto.request.ChangePasswordRequest;
 import com.affairs.management.dto.request.LoginRequest;
 import com.affairs.management.dto.request.ResetPasswordRequest;
 import com.affairs.management.dto.response.LoginResponse;
+import com.affairs.management.dto.response.RoleContext;
 import com.affairs.management.dto.response.UserVO;
 import com.affairs.management.security.SecurityUtils;
 import com.affairs.management.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/auth")
@@ -28,6 +31,12 @@ public class AuthController {
     public ApiResponse<UserVO> getUserInfo() {
         String userId = SecurityUtils.getCurrentUserId();
         return ApiResponse.success(authService.getUserInfo(userId));
+    }
+
+    @GetMapping("/role-contexts")
+    public ApiResponse<List<RoleContext>> getRoleContexts() {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.success(authService.getRoleContexts(userId));
     }
 
     @PostMapping("/reset-password")

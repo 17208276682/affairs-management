@@ -19,7 +19,7 @@
           <el-input v-model="filterText" placeholder="搜索部门" prefix-icon="Search" clearable style="margin-bottom: 12px" />
           <el-tree
             ref="treeRef"
-            :data="orgStore.orgTree"
+            :data="visibleOrgTree"
             :props="{ label: 'label', children: 'children' }"
             node-key="id"
             default-expand-all
@@ -92,7 +92,7 @@
               <el-table-column label="邮箱" prop="email" />
               <el-table-column label="角色" width="100">
                 <template #default="{ row }">
-                  <el-tag :type="row.role === 'admin' ? 'danger' : row.role === 'manager' ? 'warning' : 'info'" size="small">
+                  <el-tag :type="row.role === 'ceo' ? 'danger' : row.role === 'manager' ? 'warning' : 'info'" size="small">
                     {{ ROLE_MAP[row.role] || row.role }}
                   </el-tag>
                 </template>
@@ -145,7 +145,7 @@
           <el-select v-model="memberForm.role" placeholder="选择角色">
             <el-option label="普通员工" value="staff" />
             <el-option label="部门经理" value="manager" />
-            <el-option label="系统管理员" value="admin" />
+            <el-option label="CEO" value="ceo" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -197,11 +197,34 @@ const memberForm = ref({
 const deptFormTitle = computed(() => deptForm.value.id ? '编辑部门' : '新增部门')
 
 const deptMembers = ref<User[]>([])
+const adminUserIds = ref<string[]>([])
+
+const visibleOrgTree = computed<OrgTreeNode[]>(() => {
+  const adminIdSet = new Set(adminUserIds.value)
+  const filterNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
+    return nodes
+      .filter(node => !(node.type === 'member' && adminIdSet.has(node.id)))
+      .map(node => ({
+        ...node,
+        children: node.children ? filterNodes(node.children) : [],
+      }))
+  }
+  return filterNodes(orgStore.orgTree)
+})
+
+async function loadAdminUserIds() {
+  try {
+    const res = await getMemberListApi({ page: 1, pageSize: 9999 })
+    adminUserIds.value = res.data.list.filter(item => item.role === 'admin').map(item => item.id)
+  } catch {
+    adminUserIds.value = []
+  }
+}
 
 async function fetchDeptMembers(deptId: string) {
   try {
     const res = await getMemberListApi({ deptId, page: 1, pageSize: 100 })
-    deptMembers.value = res.data.list
+    deptMembers.value = res.data.list.filter(item => item.role !== 'admin')
   } catch {
     deptMembers.value = []
   }
@@ -278,7 +301,7 @@ async function saveDept() {
 onMounted(async () => {
   treeLoading.value = true
   try {
-    await orgStore.fetchOrgTree()
+    await Promise.all([orgStore.fetchOrgTree(), loadAdminUserIds()])
   } finally {
     treeLoading.value = false
   }

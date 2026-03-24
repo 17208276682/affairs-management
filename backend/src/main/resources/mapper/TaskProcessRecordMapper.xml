@@ -48,4 +48,24 @@
     <select id="selectMaxId" resultType="string">
         SELECT MAX(id) FROM task_process_records
     </select>
+
+    <!-- 按角色查询与当前用户相关的最近动态 -->
+    <select id="selectRecentByRelation" resultMap="RecordResultMap">
+        SELECT DISTINCT r.* FROM task_process_records r
+        JOIN tasks t ON r.task_id = t.id
+        WHERE r.action IN ('create', 'reassign', 'submit', 'approve', 'reject', 'cancel')
+        <choose>
+            <when test="checkAssigner and checkExecutor">
+                AND (t.assigner_id = #{userId} OR t.executor_id = #{userId})
+            </when>
+            <when test="checkAssigner">
+                AND t.assigner_id = #{userId}
+            </when>
+            <when test="checkExecutor">
+                AND t.executor_id = #{userId}
+            </when>
+        </choose>
+        ORDER BY r.created_at DESC
+        LIMIT #{limit}
+    </select>
 </mapper>

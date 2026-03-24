@@ -28,14 +28,14 @@ public class PasswordHashFixer implements CommandLineRunner {
     /** 预设账号和明文密码 */
     private static final Map<String, String> PRESET_PASSWORDS = new LinkedHashMap<>();
     static {
-        PRESET_PASSWORDS.put("admin", "admin123");
-        PRESET_PASSWORDS.put("wangjh", "123456");
-        PRESET_PASSWORDS.put("zhangsan", "123456");
-        PRESET_PASSWORDS.put("lisi", "123456");
-        PRESET_PASSWORDS.put("wangcheng", "123456");
-        PRESET_PASSWORDS.put("zhaoyang", "123456");
-        PRESET_PASSWORDS.put("wangfang", "123456");
-        PRESET_PASSWORDS.put("huangxl", "123456");
+        PRESET_PASSWORDS.put("admin", "Admin123");
+        PRESET_PASSWORDS.put("zhaoyang", "Abc@1234");
+        PRESET_PASSWORDS.put("wangjh", "Abc@1234");
+        PRESET_PASSWORDS.put("zhangsan", "Abc@1234");
+        PRESET_PASSWORDS.put("lisi", "Abc@1234");
+        PRESET_PASSWORDS.put("wangcheng", "Abc@1234");
+        PRESET_PASSWORDS.put("wangfang", "Abc@1234");
+        PRESET_PASSWORDS.put("huangxl", "Abc@1234");
     }
 
     @Override

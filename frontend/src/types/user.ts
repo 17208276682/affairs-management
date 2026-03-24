@@ -3,7 +3,7 @@
 // ============================================
 
 /** 用户角色 */
-export type UserRole = 'admin' | 'director' | 'manager' | 'staff'
+export type UserRole = 'admin' | 'ceo' | 'director' | 'manager' | 'staff'
 
 /** 用户状态 */
 export type UserStatus = 0 | 1 // 0=离职 1=在职
@@ -36,4 +36,12 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string
   user: User
+}
+
+/** 角色上下文：描述用户可切换的角色视角 */
+export interface RoleContext {
+  role: UserRole
+  deptId: string
+  deptName: string
+  label: string
 }

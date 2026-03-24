@@ -51,8 +51,9 @@ export const useOrganizationStore = defineStore('organization', () => {
     loading.value = true
     try {
       const res = await getMemberListApi(params)
-      memberList.value = res.data.list
-      memberTotal.value = res.data.total
+      const visibleMembers = res.data.list.filter(item => item.role !== 'admin')
+      memberList.value = visibleMembers
+      memberTotal.value = visibleMembers.length
     } finally {
       loading.value = false
     }
@@ -74,8 +75,9 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   async function fetchSelectableMembers(deptIds?: string[], scope?: 'subordinates') {
     const res = await getSelectableMembersApi(deptIds, scope)
-    selectableMembers.value = res.data
-    return res.data
+    const visibleMembers = res.data.filter(item => item.role !== 'admin')
+    selectableMembers.value = visibleMembers
+    return visibleMembers
   }
 
   return {

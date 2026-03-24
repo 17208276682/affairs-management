@@ -17,6 +17,9 @@
         <result property="completionTime" column="completion_time"/>
         <result property="status" column="status"/>
         <result property="parentTaskId" column="parent_task_id"/>
+        <result property="assignerRole" column="assigner_role"/>
+        <result property="assignerDeptId" column="assigner_dept_id"/>
+        <result property="executorContextDeptId" column="executor_context_dept_id"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
@@ -28,10 +31,12 @@
     <insert id="insert">
         INSERT INTO tasks (id, title, description, assigner_id, executor_id,
                            importance, urgency, level, response_deadline, completion_deadline,
-                           response_time, completion_time, status, parent_task_id)
+                           response_time, completion_time, status, parent_task_id,
+                           assigner_role, assigner_dept_id, executor_context_dept_id)
         VALUES (#{id}, #{title}, #{description}, #{assignerId}, #{executorId},
                 #{importance}, #{urgency}, #{level}, #{responseDeadline}, #{completionDeadline},
-                #{responseTime}, #{completionTime}, #{status}, #{parentTaskId})
+                #{responseTime}, #{completionTime}, #{status}, #{parentTaskId},
+                #{assignerRole}, #{assignerDeptId}, #{executorContextDeptId})
     </insert>
 
     <update id="update">
@@ -49,6 +54,9 @@
             <if test="completionTime != null">completion_time = #{completionTime},</if>
             <if test="status != null">status = #{status},</if>
             <if test="parentTaskId != null">parent_task_id = #{parentTaskId},</if>
+            <if test="assignerRole != null">assigner_role = #{assignerRole},</if>
+            <if test="assignerDeptId != null">assigner_dept_id = #{assignerDeptId},</if>
+            <if test="executorContextDeptId != null">executor_context_dept_id = #{executorContextDeptId},</if>
         </set>
         WHERE id = #{id}
     </update>
@@ -59,29 +67,83 @@
             <!-- assigned: 我下达的（根任务） -->
             <if test="type == 'assigned'">
                 AND t.assigner_id = #{currentUserId}
+                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
+                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
+                <if test="role == 'director' or role == 'ceo'">
+                    AND EXISTS (
+                        SELECT 1 FROM users ue
+                        WHERE ue.id = t.executor_id
+                          AND (
+                              ue.role IN ('director', 'manager')
+                              OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
+                          )
+                    )
+                </if>
+                <if test="role == 'manager'">
+                    AND EXISTS (
+                        SELECT 1 FROM users ue
+                        WHERE ue.id = t.executor_id
+                                                    AND (
+                                                        (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
+                                                        OR
+                                                        (ue.role = 'manager' AND EXISTS (
+                                                                SELECT 1 FROM departments dc
+                                                                WHERE dc.id = ue.dept_id
+                                                                    AND dc.parent_id = #{currentDeptId}
+                                                        ))
+                                                    )
+                    )
+                </if>
                 AND t.parent_task_id IS NULL
             </if>
 
             <!-- todo: 我的待办 -->
             <if test="type == 'todo'">
                 <choose>
-                    <when test="role == 'director'">
+                    <when test="role == 'director' or role == 'ceo'">
                         AND t.assigner_id = #{currentUserId}
+                        AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
+                        AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
                         AND t.status = 'submitted'
+                        AND t.parent_task_id IS NULL
+                        AND EXISTS (
+                            SELECT 1 FROM users ue
+                            WHERE ue.id = t.executor_id
+                              AND (
+                                  ue.role IN ('director', 'manager')
+                                  OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
+                              )
+                        )
                     </when>
                     <when test="role == 'manager'">
                         AND (
                             (t.executor_id = #{currentUserId}
-                             AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue')
-                             AND t.parent_task_id IS NULL)
+                             AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
+                             AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue'))
                             OR
                             (t.assigner_id = #{currentUserId}
+                             AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
+                             AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
                              AND t.status = 'submitted'
+                                                         AND EXISTS (
+                                                                SELECT 1 FROM users ue
+                                                                WHERE ue.id = t.executor_id
+                                                                    AND (
+                                                                        (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
+                                                                        OR
+                                                                        (ue.role = 'manager' AND EXISTS (
+                                                                                SELECT 1 FROM departments dc
+                                                                                WHERE dc.id = ue.dept_id
+                                                                                    AND dc.parent_id = #{currentDeptId}
+                                                                        ))
+                                                                    )
+                                                         )
                              AND t.parent_task_id IS NULL)
                         )
                     </when>
                     <otherwise>
                         AND t.executor_id = #{currentUserId}
+                        AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
                         AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue')
                     </otherwise>
                 </choose>
@@ -90,22 +152,70 @@
             <!-- scope: 事务列表（按权限范围） -->
             <if test="type == 'scope'">
                 <choose>
-                    <when test="role == 'director' or role == 'manager'">
-                        <if test="managedUserIds != null and managedUserIds.size() > 0">
-                            AND (
+                    <when test="role == 'director' or role == 'ceo'">
+                        AND (
+                            (
+                                t.assigner_id = #{currentUserId}
+                                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
+                                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
+                                AND EXISTS (
+                                    SELECT 1 FROM users ue
+                                    WHERE ue.id = t.executor_id
+                                      AND (
+                                          ue.role IN ('director', 'manager')
+                                          OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
+                                      )
+                                )
+                            )
+                            <if test="managedUserIds != null and managedUserIds.size() > 0">
+                                OR (
                                 t.assigner_id IN
                                 <foreach collection="managedUserIds" item="uid" open="(" separator="," close=")">
                                     #{uid}
                                 </foreach>
-                                <if test="role == 'manager'">
-                                    OR t.executor_id = #{currentUserId}
-                                </if>
-                            )
-                        </if>
+                                AND t.assigner_id != #{currentUserId}
+                                )
+                            </if>
+                        )
                         AND t.parent_task_id IS NULL
+                    </when>
+                    <when test="role == 'manager'">
+                        AND (
+                            (
+                                t.assigner_id = #{currentUserId}
+                                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
+                                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
+                                AND t.parent_task_id IS NULL
+                                AND EXISTS (
+                                    SELECT 1 FROM users ue
+                                    WHERE ue.id = t.executor_id
+                                                                            AND (
+                                                                                (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
+                                                                                OR
+                                                                                (ue.role = 'manager' AND EXISTS (
+                                                                                        SELECT 1 FROM departments dc
+                                                                                        WHERE dc.id = ue.dept_id
+                                                                                            AND dc.parent_id = #{currentDeptId}
+                                                                                ))
+                                                                            )
+                                )
+                            )
+                            <if test="managedUserIds != null and managedUserIds.size() > 0">
+                                OR (t.assigner_id IN
+                                <foreach collection="managedUserIds" item="uid" open="(" separator="," close=")">
+                                    #{uid}
+                                </foreach>
+                                AND t.parent_task_id IS NULL)
+                            </if>
+                            OR (
+                                t.executor_id = #{currentUserId}
+                                AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
+                            )
+                        )
                     </when>
                     <otherwise>
                         AND t.executor_id = #{currentUserId}
+                        AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
                     </otherwise>
                 </choose>
             </if>
@@ -113,6 +223,7 @@
             <!-- received: 我执行的 -->
             <if test="type == 'received'">
                 AND t.executor_id = #{currentUserId}
+                AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
             </if>
 
             <!-- all: 全部（仅总经办/经理） -->
@@ -123,6 +234,9 @@
             <!-- 通用筛选条件 -->
             <if test="status != null and status != ''">
                 <choose>
+                    <when test="status == 'pending'">
+                        AND t.status IN ('pending', 'accepted', 'in_progress')
+                    </when>
                     <when test="status == 'completed'">
                         AND t.status IN ('approved', 'completed')
                     </when>
@@ -202,16 +316,32 @@
             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingTasks,
             SUM(CASE WHEN status IN ('accepted', 'in_progress', 'submitted') THEN 1 ELSE 0 END) AS inProgressTasks,
             SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completedTasks,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejectedTasks,
             SUM(CASE WHEN status = 'overdue'
                       OR (completion_deadline &lt; NOW()
                           AND status NOT IN ('approved', 'completed', 'cancelled'))
                  THEN 1 ELSE 0 END) AS overdueTasks,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelledTasks,
             AVG(CASE WHEN response_time IS NOT NULL
                      THEN TIMESTAMPDIFF(MINUTE, created_at, response_time) / 60.0
                      ELSE NULL END) AS avgResponseHours,
             AVG(CASE WHEN completion_time IS NOT NULL
                      THEN TIMESTAMPDIFF(MINUTE, created_at, completion_time) / 60.0
-                     ELSE NULL END) AS avgCompletionHours
+                     ELSE NULL END) AS avgCompletionHours,
+            SUM(CASE WHEN status IN ('approved', 'completed')
+                          AND (completion_deadline IS NULL OR completion_time &lt;= completion_deadline)
+                 THEN 1 ELSE 0 END) AS onTimeCompleted,
+            SUM(CASE WHEN status IN ('approved', 'completed')
+                          AND completion_deadline IS NOT NULL AND completion_time > completion_deadline
+                 THEN 1 ELSE 0 END) AS overdueCompleted,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS failedReview,
+            SUM(CASE WHEN status NOT IN ('approved', 'completed', 'cancelled', 'rejected')
+                          AND (completion_deadline IS NULL OR completion_deadline >= NOW())
+                 THEN 1 ELSE 0 END) AS todoTasks,
+            SUM(CASE WHEN status NOT IN ('approved', 'completed', 'cancelled')
+                          AND completion_deadline IS NOT NULL AND completion_deadline &lt; NOW()
+                 THEN 1 ELSE 0 END) AS overdueUnfinished,
+            SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submittedTasks
         FROM tasks
         <where>
             <if test="userIds != null and userIds.size() > 0">
@@ -296,7 +426,21 @@
                      ELSE NULL END) AS avgResponseHours,
             AVG(CASE WHEN t.completion_time IS NOT NULL
                      THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.completion_time) / 60.0
-                     ELSE NULL END) AS avgCompletionHours
+                     ELSE NULL END) AS avgCompletionHours,
+            SUM(CASE WHEN t.status IN ('approved', 'completed')
+                          AND (t.completion_deadline IS NULL OR t.completion_time &lt;= t.completion_deadline)
+                 THEN 1 ELSE 0 END) AS onTimeCompleted,
+            SUM(CASE WHEN t.status IN ('approved', 'completed')
+                          AND t.completion_deadline IS NOT NULL AND t.completion_time > t.completion_deadline
+                 THEN 1 ELSE 0 END) AS overdueCompleted,
+            SUM(CASE WHEN t.status = 'rejected' THEN 1 ELSE 0 END) AS failedReview,
+            SUM(CASE WHEN t.status NOT IN ('approved', 'completed', 'cancelled', 'rejected')
+                          AND (t.completion_deadline IS NULL OR t.completion_deadline >= NOW())
+                 THEN 1 ELSE 0 END) AS todoTasks,
+            SUM(CASE WHEN t.status NOT IN ('approved', 'completed', 'cancelled')
+                          AND t.completion_deadline IS NOT NULL AND t.completion_deadline &lt; NOW()
+                 THEN 1 ELSE 0 END) AS overdueUnfinished,
+            SUM(CASE WHEN t.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelledTasks
         FROM tasks t
         INNER JOIN users u ON t.executor_id = u.id
         LEFT JOIN departments d ON u.dept_id = d.id
@@ -332,5 +476,58 @@
         </where>
         GROUP BY DATE(created_at)
         ORDER BY date
+    </select>
+
+    <!-- 按月统计趋势 -->
+    <select id="selectMonthlyTrend" resultType="map">
+        SELECT
+            DATE_FORMAT(created_at, '%Y-%m') AS month,
+            COUNT(*) AS assigned,
+            SUM(CASE WHEN status IN ('approved', 'completed') THEN 1 ELSE 0 END) AS completed
+        FROM tasks
+        <where>
+            <if test="userIds != null and userIds.size() > 0">
+                AND (assigner_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                OR executor_id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+                )
+            </if>
+        </where>
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        ORDER BY month
+    </select>
+
+    <!-- 导出事务明细 -->
+    <select id="selectExportData" resultType="map">
+        SELECT
+            t.id AS taskId,
+            t.title,
+            t.description,
+            a.name AS assignerName,
+            ad.name AS assignerDept,
+            e.name AS executorName,
+            ed.name AS executorDept,
+            t.importance,
+            t.urgency,
+            t.level,
+            t.status,
+            t.created_at AS createdAt,
+            t.completion_deadline AS completionDeadline,
+            t.completion_time AS completionTime
+        FROM tasks t
+        LEFT JOIN users a ON t.assigner_id = a.id
+        LEFT JOIN departments ad ON a.dept_id = ad.id
+        LEFT JOIN users e ON t.executor_id = e.id
+        LEFT JOIN departments ed ON e.dept_id = ed.id
+        <where>
+            <if test="startDate != null">
+                AND t.created_at &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND t.created_at &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY t.created_at DESC
     </select>
 </mapper>

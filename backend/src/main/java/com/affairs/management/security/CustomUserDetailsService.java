@@ -23,7 +23,11 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 支持用户名和手机号两种方式登录
         User user = userMapper.selectByUsername(username);
+        if (user == null) {
+            user = userMapper.selectByPhone(username);
+        }
         if (user == null) {
             throw new UsernameNotFoundException("User not found: " + username);
         }

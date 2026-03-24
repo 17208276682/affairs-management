@@ -7,7 +7,8 @@ import lombok.Getter;
  */
 @Getter
 public enum UserRole {
-    ADMIN("admin", "系统管理员"),
+    ADMIN("admin", "管理员"),
+    CEO("ceo", "CEO"),
     DIRECTOR("director", "高级管理者"),
     MANAGER("manager", "中级管理者"),
     STAFF("staff", "普通员工");

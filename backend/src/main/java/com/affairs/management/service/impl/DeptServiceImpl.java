@@ -36,6 +36,11 @@ public class DeptServiceImpl implements DeptService {
         List<Department> allDepts = deptMapper.selectAll();
         List<User> allUsers = userMapper.selectByDeptIds(
                 allDepts.stream().map(Department::getId).collect(Collectors.toList()));
+        Map<String, User> userMap = allUsers.stream().collect(Collectors.toMap(
+            User::getId,
+            u -> u,
+            (a, b) -> a,
+            LinkedHashMap::new));
 
         // 按部门分组用户
         Map<String, List<User>> usersByDept = allUsers.stream()
@@ -53,20 +58,31 @@ public class DeptServiceImpl implements DeptService {
             node.setMemberCount(dept.getMemberCount());
             node.setChildren(new ArrayList<>());
 
-            // 查负责人名称
-            if (dept.getLeaderId() != null) {
+            // 添加成员子节点（第二层会补充“顶层兼任负责人”）
+            List<User> deptUsers = buildDeptDisplayUsers(dept, usersByDept, userMap);
+
+            // 查负责人名称：非顶级优先负责人，其次顶层兼任负责人；顶级部门按leaderId查找
+            if (dept.getLevel() != null && dept.getLevel() > 0) {
+                deptUsers.stream()
+                    .filter(u -> "manager".equals(u.getRole()))
+                    .findFirst()
+                    .or(() -> deptUsers.stream()
+                        .filter(u -> "ceo".equals(u.getRole()) || "director".equals(u.getRole()))
+                        .findFirst())
+                    .ifPresent(leader -> node.setLeaderName(leader.getName()));
+            } else if (dept.getLeaderId() != null) {
                 User leader = userMapper.selectById(dept.getLeaderId());
                 if (leader != null) {
                     node.setLeaderName(leader.getName());
                 }
             }
-
-            // 添加成员子节点
-            List<User> deptUsers = usersByDept.getOrDefault(dept.getId(), Collections.emptyList());
             for (User user : deptUsers) {
+                boolean isManagedRole = !Objects.equals(user.getDeptId(), dept.getId());
                 OrgTreeNode memberNode = new OrgTreeNode();
-                memberNode.setId(user.getId());
-                memberNode.setLabel(user.getName());
+                memberNode.setId(isManagedRole ? user.getId() + "@" + dept.getId() + "#managed" : user.getId());
+                memberNode.setLabel(isManagedRole
+                        ? user.getName() + "（" + roleLabel(user.getRole()) + "与负责人(" + dept.getName() + ")）"
+                        : user.getName());
                 memberNode.setType("member");
                 memberNode.setParentId(dept.getId());
                 memberNode.setPosition(user.getPosition());
@@ -81,9 +97,9 @@ public class DeptServiceImpl implements DeptService {
         List<OrgTreeNode> roots = new ArrayList<>();
         for (OrgTreeNode node : nodeMap.values()) {
             if (node.getParentId() != null && nodeMap.containsKey(node.getParentId())) {
-                // 部门子节点放在成员前面
+                // 子节点按查询顺序末位追加，保证新增部门显示在同级末尾
                 OrgTreeNode parent = nodeMap.get(node.getParentId());
-                parent.getChildren().add(0, node);
+                parent.getChildren().add(node);
             } else {
                 roots.add(node);
             }
@@ -127,7 +143,9 @@ public class DeptServiceImpl implements DeptService {
         dept.setName(request.getName());
         dept.setParentId(request.getParentId());
         dept.setLeaderId(request.getLeaderId());
-        dept.setSortOrder(request.getSort() != null ? request.getSort() : 0);
+        Integer maxSort = deptMapper.selectMaxSortByParentId(request.getParentId());
+        int defaultSort = maxSort == null ? 0 : maxSort + 1;
+        dept.setSortOrder(request.getSort() != null ? request.getSort() : defaultSort);
         dept.setLevel(level);
         dept.setMemberCount(0);
         dept.setStatus(request.getStatus() != null ? request.getStatus() : 1);
@@ -185,6 +203,12 @@ public class DeptServiceImpl implements DeptService {
             allDeptIds.addAll(childIds);
         }
 
+        // 部门或其下级存在成员时禁止删除
+        List<User> relatedMembers = userMapper.selectByDeptIds(allDeptIds);
+        if (!relatedMembers.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "该部门或下级部门存在成员，不能删除");
+        }
+
         // 清理 user_managed_departments
         for (String deptId : allDeptIds) {
             userManagedDeptMapper.deleteByDeptId(deptId);
@@ -213,7 +237,38 @@ public class DeptServiceImpl implements DeptService {
         vo.setMemberCount(dept.getMemberCount());
         vo.setStatus(dept.getStatus());
 
-        if (dept.getLeaderId() != null) {
+        // 非顶级部门：优先负责人，其次顶层兼任负责人；顶级部门：按leaderId查找
+        if (dept.getLevel() != null && dept.getLevel() > 0) {
+            List<User> deptUsers = new ArrayList<>(userMapper.selectByDeptId(dept.getId()));
+            if (Objects.equals(dept.getLevel(), 1)) {
+                List<String> managedUserIds = userManagedDeptMapper.selectUserIdsByDeptId(dept.getId());
+                if (managedUserIds != null && !managedUserIds.isEmpty()) {
+                    List<User> managedUsers = userMapper.selectByIds(managedUserIds).stream()
+                        .filter(u -> u.getStatus() != null && u.getStatus() == 1)
+                        .filter(u -> "ceo".equals(u.getRole()) || "director".equals(u.getRole()))
+                        .toList();
+                    Map<String, User> dedupMap = new LinkedHashMap<>();
+                    for (User user : deptUsers) dedupMap.put(user.getId(), user);
+                    for (User user : managedUsers) dedupMap.putIfAbsent(user.getId(), user);
+                    deptUsers = new ArrayList<>(dedupMap.values());
+                }
+            }
+            List<User> finalDeptUsers = deptUsers;
+            finalDeptUsers.stream()
+                .filter(u -> "manager".equals(u.getRole()))
+                .findFirst()
+                .or(() -> finalDeptUsers.stream()
+                    .filter(u -> "ceo".equals(u.getRole()) || "director".equals(u.getRole()))
+                    .findFirst())
+                .ifPresent(leader -> {
+                    vo.setLeaderId(leader.getId());
+                    if (("ceo".equals(leader.getRole()) || "director".equals(leader.getRole())) && Objects.equals(dept.getLevel(), 1)) {
+                        vo.setLeaderName(leader.getName() + "（" + roleLabel(leader.getRole()) + "与负责人(" + dept.getName() + ")）");
+                    } else {
+                        vo.setLeaderName(leader.getName());
+                    }
+                });
+        } else if (dept.getLeaderId() != null) {
             User leader = userMapper.selectById(dept.getLeaderId());
             if (leader != null) {
                 vo.setLeaderName(leader.getName());
@@ -224,5 +279,47 @@ public class DeptServiceImpl implements DeptService {
         if (dept.getUpdatedAt() != null) vo.setUpdatedAt(dept.getUpdatedAt().format(DTF));
 
         return vo;
+    }
+
+    private List<User> buildDeptDisplayUsers(Department dept,
+                                             Map<String, List<User>> usersByDept,
+                                             Map<String, User> userMap) {
+        List<User> deptUsers = new ArrayList<>(usersByDept.getOrDefault(dept.getId(), Collections.emptyList()));
+        if (!Objects.equals(dept.getLevel(), 1)) {
+            return deptUsers;
+        }
+
+        // 第二层部门补充“顶层兼任负责人”展示
+        List<String> managedUserIds = userManagedDeptMapper.selectUserIdsByDeptId(dept.getId());
+        if (managedUserIds == null || managedUserIds.isEmpty()) {
+            return deptUsers;
+        }
+
+        Map<String, User> dedupMap = new LinkedHashMap<>();
+        for (User user : deptUsers) {
+            dedupMap.put(user.getId(), user);
+        }
+        for (String userId : managedUserIds) {
+            User user = userMap.get(userId);
+            if (user == null) {
+                continue;
+            }
+            if (user.getStatus() == null || user.getStatus() != 1) {
+                continue;
+            }
+            if (!"ceo".equals(user.getRole()) && !"director".equals(user.getRole())) {
+                continue;
+            }
+            dedupMap.putIfAbsent(user.getId(), user);
+        }
+        return new ArrayList<>(dedupMap.values());
+    }
+
+    private String roleLabel(String role) {
+        if ("ceo".equals(role)) return "总经理";
+        if ("director".equals(role)) return "副总经理";
+        if ("manager".equals(role)) return "负责人";
+        if ("staff".equals(role)) return "普通员工";
+        return role;
     }
 }

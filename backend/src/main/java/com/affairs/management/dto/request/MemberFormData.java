@@ -13,7 +13,7 @@ public class MemberFormData {
     @NotBlank(message = "姓名不能为空")
     private String name;
 
-    @NotBlank(message = "账号不能为空")
+    /** 兼容字段：前端已改为手机号登录，通常不再单独传用户名 */
     private String username;
 
     /** 密码（新增时必填，编辑时可选） */

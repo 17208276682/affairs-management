@@ -16,13 +16,13 @@
           :collapse-transition="false"
           router
         >
-          <!-- 事务总览 — director / manager / staff -->
+          <!-- 事务总览 — ceo / director / manager / staff -->
           <el-menu-item v-if="!userStore.isAdmin" index="/dashboard">
             <el-icon><Monitor /></el-icon>
             <template #title>事务总览</template>
           </el-menu-item>
 
-          <!-- 事务列表 — director / manager / staff -->
+          <!-- 事务列表 — ceo / director / manager / staff -->
           <el-menu-item v-if="!userStore.isAdmin" index="/task/list/scope">
             <el-icon><Promotion /></el-icon>
             <template #title>事务列表</template>
@@ -34,22 +34,28 @@
             <template #title>我的下达</template>
           </el-menu-item>
 
-          <!-- 我的代办 — director / manager / staff -->
+          <!-- 我的代办 — ceo / director / manager / staff -->
           <el-menu-item v-if="!userStore.isAdmin" index="/task/list/todo">
             <el-icon><Message /></el-icon>
             <template #title>我的代办</template>
           </el-menu-item>
 
-          <!-- 组织管理 — admin -->
+          <!-- 组织管理 — 管理员 -->
           <el-menu-item v-if="userStore.isAdmin" index="/org/dept">
             <el-icon><Grid /></el-icon>
             <template #title>组织管理</template>
           </el-menu-item>
 
-          <!-- 人员管理 — admin -->
+          <!-- 人员管理 — 管理员 -->
           <el-menu-item v-if="userStore.isAdmin" index="/org/member">
             <el-icon><User /></el-icon>
             <template #title>人员管理</template>
+          </el-menu-item>
+
+          <!-- 事务统计 — 管理员 -->
+          <el-menu-item v-if="userStore.isAdmin" index="/statistics">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>事务统计</template>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
@@ -77,52 +83,30 @@
         </div>
 
         <div class="header-right">
-          <!-- 通知 -->
-          <el-popover placement="bottom-end" :width="360" trigger="click">
-            <template #reference>
-              <el-badge :value="notificationStore.unreadCount" :hidden="notificationStore.unreadCount === 0" :max="99">
-                <el-icon :size="20" class="header-icon"><Bell /></el-icon>
-              </el-badge>
-            </template>
-            <div class="notification-panel">
-              <div class="notification-header">
-                <span class="notification-title">消息通知</span>
-                <el-link type="primary" :underline="false" @click="notificationStore.markAllAsRead()">
-                  全部已读
-                </el-link>
-              </div>
-              <el-scrollbar max-height="320px">
-                <div
-                  v-for="n in notificationStore.notifications"
-                  :key="n.id"
-                  class="notification-item"
-                  :class="{ unread: !n.isRead }"
-                  @click="handleNotificationClick(n)"
-                >
-                  <div class="notification-item-title">{{ n.title }}</div>
-                  <div class="notification-item-content">{{ n.content }}</div>
-                  <div class="notification-item-time">{{ formatRelativeTime(n.createdAt) }}</div>
-                </div>
-                <el-empty v-if="notificationStore.notifications.length === 0" description="暂无消息" :image-size="60" />
-              </el-scrollbar>
-            </div>
-          </el-popover>
-
           <!-- 用户信息 -->
           <el-dropdown trigger="click" @command="handleUserCommand">
             <div class="user-info">
               <el-avatar :size="32" :src="userStore.userInfo?.avatar || undefined">
-                {{ userStore.userInfo?.name?.charAt(0) }}
+                {{ displayUserName?.charAt(0) }}
               </el-avatar>
               <div class="user-detail">
-                <span class="user-name">{{ userStore.userInfo?.name }}</span>
-                <span class="user-role">{{ userStore.displayRole }}</span>
+                <span class="user-name">{{ displayUserName }}</span>
+                <span class="user-role">{{ displayUserRole }}</span>
               </div>
               <el-icon><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">
+                <el-dropdown-item
+                  v-for="(ctx, idx) in userStore.roleContexts"
+                  :key="`switch-${idx}`"
+                  :command="`role:${idx}`"
+                >
+                  <el-icon><Switch /></el-icon>
+                  {{ ctx.label }}
+                  <el-tag v-if="ctx.role === userStore.currentRole && ctx.deptId === userStore.currentDeptId" size="small" type="success" style="margin-left: 8px;">当前</el-tag>
+                </el-dropdown-item>
+                <el-dropdown-item :divided="userStore.roleContexts.length > 1" command="profile">
                   <el-icon><UserFilled /></el-icon>个人中心
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
@@ -138,7 +122,7 @@
       <el-main class="main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" :key="route.fullPath" />
+            <component :is="Component" :key="viewRenderKey" />
           </transition>
         </router-view>
       </el-main>
@@ -147,16 +131,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useUserStore, useNotificationStore } from '@/stores'
-import { formatRelativeTime } from '@/utils/format'
-import type { Notification } from '@/types'
+import { useUserStore } from '@/stores'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
-const notificationStore = useNotificationStore()
 
 const isCollapsed = ref(false)
 
@@ -172,24 +153,35 @@ const currentRouteTitle = computed(() => {
 })
 
 const isOrgPage = computed(() => route.path.startsWith('/org/'))
-
-onMounted(async () => {
-  // userInfo 已由路由守卫保证加载完成，这里只拉取通知
-  if (userStore.isLoggedIn) {
-    notificationStore.fetchNotifications()
-  }
-})
-
-function handleNotificationClick(n: Notification) {
-  notificationStore.markAsRead(n.id)
-  if (n.relatedTaskId) {
-    // 跳转到我的代办页面，通过 query 传递需要展示详情的事务 ID
-    router.push({ path: '/task/list/todo', query: { taskId: n.relatedTaskId } })
-  }
-}
+const displayUserName = computed(() => userStore.currentRole === 'admin' ? '用户' : (userStore.userInfo?.name || ''))
+const displayUserRole = computed(() => userStore.currentRole === 'admin' ? '' : userStore.displayRole)
+const viewRenderKey = computed(() => `${route.fullPath}|${userStore.currentRole}`)
 
 function handleUserCommand(cmd: string) {
-  if (cmd === 'profile') {
+  if (cmd.startsWith('role:')) {
+    const idx = parseInt(cmd.replace('role:', ''), 10)
+    const ctx = userStore.roleContexts[idx]
+    if (!ctx) return
+    userStore.switchRole(ctx)
+
+    // 角色切换后跳转到对应入口，确保按新角色重新加载页面数据
+    if (ctx.role === 'admin') {
+      router.push('/org/dept')
+      return
+    }
+    if (ctx.role === 'staff') {
+      router.push('/task/list/todo')
+      return
+    }
+    if (ctx.role === 'manager') {
+      router.push('/dashboard')
+      return
+    }
+    if (ctx.role === 'ceo' || ctx.role === 'director') {
+      router.push('/dashboard')
+      return
+    }
+  } else if (cmd === 'profile') {
     router.push('/profile')
   } else if (cmd === 'logout') {
     userStore.logout()
@@ -318,57 +310,6 @@ function handleUserCommand(cmd: string) {
   > * {
     flex: 1;
     min-height: 0;
-  }
-}
-
-// 通知面板
-.notification-panel {
-  .notification-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: $spacing-sm;
-    border-bottom: 1px solid $border-light;
-    margin-bottom: $spacing-sm;
-
-    .notification-title {
-      font-weight: 600;
-      font-size: $font-size-md;
-    }
-  }
-
-  .notification-item {
-    padding: $spacing-sm $spacing-xs;
-    border-radius: $radius-sm;
-    cursor: pointer;
-    transition: background $transition-fast;
-    border-bottom: 1px solid $border-lighter;
-
-    &:hover {
-      background: $bg-hover;
-    }
-
-    &.unread {
-      background: $primary-light;
-    }
-
-    .notification-item-title {
-      font-weight: 500;
-      font-size: $font-size-sm;
-      color: $text-primary;
-    }
-
-    .notification-item-content {
-      font-size: $font-size-xs;
-      color: $text-regular;
-      margin-top: 4px;
-    }
-
-    .notification-item-time {
-      font-size: $font-size-xs;
-      color: $text-secondary;
-      margin-top: 4px;
-    }
   }
 }
 </style>

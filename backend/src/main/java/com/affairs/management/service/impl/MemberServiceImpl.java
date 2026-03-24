@@ -14,14 +14,16 @@ import com.affairs.management.mapper.UserMapper;
 import com.affairs.management.service.MemberService;
 import com.affairs.management.util.IdGenerator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,7 +34,6 @@ public class MemberServiceImpl implements MemberService {
     private final DeptMapper deptMapper;
     private final UserManagedDeptMapper userManagedDeptMapper;
     private final IdGenerator idGenerator;
-    private final PasswordEncoder passwordEncoder;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -52,8 +53,20 @@ public class MemberServiceImpl implements MemberService {
     @Override
     @Transactional
     public UserVO createMember(MemberFormData request) {
+        if (request.getDeptId() == null || request.getDeptId().isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "所属部门不能为空");
+        }
+        validateRoleByDept(request.getRole(), request.getDeptId());
+
+        String loginAccount = (request.getPhone() != null && !request.getPhone().isBlank())
+                ? request.getPhone().trim()
+                : request.getUsername();
+        if (loginAccount == null || loginAccount.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "手机号不能为空");
+        }
+
         // 唯一性校验
-        if (userMapper.selectByUsername(request.getUsername()) != null) {
+        if (userMapper.selectByUsername(loginAccount) != null) {
             throw new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
         if (userMapper.selectByPhone(request.getPhone()) != null) {
@@ -69,8 +82,8 @@ public class MemberServiceImpl implements MemberService {
 
         User user = new User();
         user.setId(idGenerator.nextUserId());
-        user.setUsername(request.getUsername());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setUsername(loginAccount);
+        user.setPasswordHash(request.getPassword());
         user.setName(request.getName());
         user.setPhone(request.getPhone());
         user.setEmail(request.getEmail());
@@ -80,9 +93,12 @@ public class MemberServiceImpl implements MemberService {
         user.setStatus(1);
         userMapper.insert(user);
 
-        // 可管理部门
-        if (request.getManagedDeptIds() != null && !request.getManagedDeptIds().isEmpty()) {
-            userManagedDeptMapper.batchInsert(user.getId(), request.getManagedDeptIds());
+        List<String> targetManagedDeptIds = normalizeManagedDeptIds(request.getManagedDeptIds());
+        validateManagedDeptAssignment(user.getId(), request.getRole(), targetManagedDeptIds);
+
+        // 顶层角色可兼任第二层部门负责人
+        if (!targetManagedDeptIds.isEmpty()) {
+            userManagedDeptMapper.batchInsert(user.getId(), targetManagedDeptIds);
         }
 
         // 更新部门成员数量
@@ -101,9 +117,13 @@ public class MemberServiceImpl implements MemberService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // 用户名唯一性（如果修改了）
-        if (request.getUsername() != null && !request.getUsername().equals(existing.getUsername())) {
-            if (userMapper.selectByUsername(request.getUsername()) != null) {
+        String targetUsername = request.getPhone() != null && !request.getPhone().isBlank()
+                ? request.getPhone().trim()
+                : request.getUsername();
+
+        // 登录账号唯一性（手机号优先）
+        if (targetUsername != null && !targetUsername.equals(existing.getUsername())) {
+            if (userMapper.selectByUsername(targetUsername) != null) {
                 throw new BusinessException(ErrorCode.USERNAME_EXISTS);
             }
         }
@@ -113,9 +133,12 @@ public class MemberServiceImpl implements MemberService {
                 throw new BusinessException(ErrorCode.PHONE_EXISTS);
             }
         }
-        // manager 唯一性
+        String targetRole = request.getRole() != null ? request.getRole() : existing.getRole();
         String targetDeptId = request.getDeptId() != null ? request.getDeptId() : existing.getDeptId();
-        if ("manager".equals(request.getRole()) && targetDeptId != null) {
+        validateRoleByDept(targetRole, targetDeptId);
+
+        // manager 唯一性
+        if ("manager".equals(targetRole) && targetDeptId != null) {
             User existingMgr = userMapper.selectManagerByDeptId(targetDeptId, id);
             if (existingMgr != null) {
                 throw new BusinessException(ErrorCode.MANAGER_EXISTS);
@@ -124,9 +147,9 @@ public class MemberServiceImpl implements MemberService {
 
         User update = new User();
         update.setId(id);
-        if (request.getUsername() != null) update.setUsername(request.getUsername());
+        if (targetUsername != null) update.setUsername(targetUsername);
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
-            update.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            update.setPasswordHash(request.getPassword());
         }
         if (request.getName() != null) update.setName(request.getName());
         if (request.getPhone() != null) update.setPhone(request.getPhone());
@@ -136,11 +159,21 @@ public class MemberServiceImpl implements MemberService {
         if (request.getRole() != null) update.setRole(request.getRole());
         userMapper.update(update);
 
-        // 更新可管理部门
+        List<String> targetManagedDeptIds;
         if (request.getManagedDeptIds() != null) {
+            targetManagedDeptIds = normalizeManagedDeptIds(request.getManagedDeptIds());
+        } else if ("ceo".equals(targetRole) || "director".equals(targetRole)) {
+            targetManagedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(id);
+        } else {
+            targetManagedDeptIds = Collections.emptyList();
+        }
+        validateManagedDeptAssignment(id, targetRole, targetManagedDeptIds);
+
+        // 更新可管理部门（角色变更为非顶层时自动清空）
+        if (request.getManagedDeptIds() != null || (!"ceo".equals(targetRole) && !"director".equals(targetRole))) {
             userManagedDeptMapper.deleteByUserId(id);
-            if (!request.getManagedDeptIds().isEmpty()) {
-                userManagedDeptMapper.batchInsert(id, request.getManagedDeptIds());
+            if (!targetManagedDeptIds.isEmpty()) {
+                userManagedDeptMapper.batchInsert(id, targetManagedDeptIds);
             }
         }
 
@@ -162,14 +195,14 @@ public class MemberServiceImpl implements MemberService {
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        // 检查关联事务
-        int taskCount = userMapper.countTasksByUserId(id);
-        if (taskCount > 0) {
-            throw new BusinessException(ErrorCode.USER_HAS_TASKS);
-        }
+
+        // 逻辑删除：保留用户记录以满足任务流程记录等外键约束
+        User update = new User();
+        update.setId(id);
+        update.setStatus(0);
+        userMapper.update(update);
 
         userManagedDeptMapper.deleteByUserId(id);
-        userMapper.deleteById(id);
 
         if (user.getDeptId() != null) {
             updateDeptMemberCount(user.getDeptId());
@@ -183,35 +216,41 @@ public class MemberServiceImpl implements MemberService {
                                               String currentDeptId) {
         List<User> users;
         if ("subordinates".equals(scope)) {
-            // director: 仅可选择下一级部门的 manager
-            // manager: 仅可选择本部门 staff
             if (currentDeptId == null) {
                 users = Collections.emptyList();
             } else if ("manager".equals(currentRole)) {
-                users = userMapper.selectByDeptId(currentDeptId).stream()
-                        .filter(u -> !u.getId().equals(currentUserId))
-                        .filter(u -> "staff".equals(u.getRole()))
-                        .collect(Collectors.toList());
-            } else {
-                List<String> childDeptIds = deptMapper.selectChildren(currentDeptId)
-                        .stream()
-                        .map(Department::getId)
-                        .collect(Collectors.toList());
-                if (childDeptIds.isEmpty()) {
-                    users = Collections.emptyList();
-                } else {
-                    users = userMapper.selectByDeptIds(childDeptIds).stream()
+                Map<String, User> selected = new LinkedHashMap<>();
+
+                List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
+                if (!childDepts.isEmpty()) {
+                    // 有子部门 → 只显示子部门负责人
+                    List<String> childDeptIds = childDepts.stream()
+                            .map(Department::getId)
+                            .collect(Collectors.toList());
+                    userMapper.selectByDeptIds(childDeptIds).stream()
                             .filter(u -> !u.getId().equals(currentUserId))
                             .filter(u -> "manager".equals(u.getRole()))
-                            .collect(Collectors.toList());
+                            .forEach(u -> selected.put(u.getId(), u));
+                } else {
+                    // 没有子部门 → 只显示本部门 staff
+                    userMapper.selectByDeptId(currentDeptId).stream()
+                            .filter(u -> !u.getId().equals(currentUserId))
+                            .filter(u -> "staff".equals(u.getRole()))
+                            .forEach(u -> selected.put(u.getId(), u));
                 }
+
+                users = new ArrayList<>(selected.values());
+            } else if ("ceo".equals(currentRole) || "director".equals(currentRole)) {
+                users = resolveTopLevelSubordinates(currentUserId, currentRole, currentDeptId);
+            } else {
+                users = Collections.emptyList();
             }
         } else if (deptIds != null && !deptIds.isEmpty()) {
             // 指定部门的成员
             users = userMapper.selectByDeptIds(deptIds);
             users = users.stream()
                     .filter(u -> !u.getId().equals(currentUserId))
-                    .filter(u -> !"admin".equals(u.getRole()))
+                    .filter(u -> !"ceo".equals(u.getRole()) && !"admin".equals(u.getRole()))
                     .collect(Collectors.toList());
         } else {
             // 默认：管辖部门负责人列表
@@ -233,6 +272,110 @@ public class MemberServiceImpl implements MemberService {
         }
 
         return users.stream().map(this::toUserVO).collect(Collectors.toList());
+    }
+
+    private void validateRoleByDept(String role, String deptId) {
+        if (role == null || role.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "角色不能为空");
+        }
+        if (deptId == null || deptId.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "所属部门不能为空");
+        }
+
+        Department dept = deptMapper.selectById(deptId);
+        if (dept == null) {
+            throw new BusinessException(ErrorCode.DEPT_NOT_FOUND);
+        }
+
+        boolean isTopLevel = Objects.equals(dept.getLevel(), 0) || dept.getParentId() == null;
+        if (isTopLevel) {
+            if (!"ceo".equals(role) && !"director".equals(role)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "顶层部门角色仅支持总经理或副总经理");
+            }
+        } else if (!"manager".equals(role) && !"staff".equals(role)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "非顶层部门角色仅支持负责人或普通员工");
+        }
+    }
+
+    private List<String> normalizeManagedDeptIds(List<String> managedDeptIds) {
+        if (managedDeptIds == null) {
+            return Collections.emptyList();
+        }
+        return managedDeptIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private void validateManagedDeptAssignment(String userId, String role, List<String> managedDeptIds) {
+        if (managedDeptIds == null || managedDeptIds.isEmpty()) {
+            return;
+        }
+        if (!"ceo".equals(role) && !"director".equals(role)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "仅总经理或副总经理可兼任第二层负责人");
+        }
+
+        for (String managedDeptId : managedDeptIds) {
+            Department managedDept = deptMapper.selectById(managedDeptId);
+            if (managedDept == null) {
+                throw new BusinessException(ErrorCode.DEPT_NOT_FOUND);
+            }
+            if (!Objects.equals(managedDept.getLevel(), 1)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "仅可兼任第二层部门负责人");
+            }
+
+            User manager = userMapper.selectManagerByDeptId(managedDeptId, userId);
+            if (manager != null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "部门【" + managedDept.getName() + "】已存在负责人");
+            }
+
+            List<String> assignedUsers = userManagedDeptMapper.selectUserIdsByDeptId(managedDeptId);
+            boolean ownedByOther = assignedUsers.stream().anyMatch(assignedUserId -> !assignedUserId.equals(userId));
+            if (ownedByOther) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "部门【" + managedDept.getName() + "】已存在负责人");
+            }
+        }
+    }
+
+    private List<User> resolveTopLevelSubordinates(String currentUserId, String currentRole, String currentDeptId) {
+        Map<String, User> selected = new LinkedHashMap<>();
+        List<String> assignerManagedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(currentUserId);
+
+        // 作为 ceo/director，仅显示下一级部门的负责人（排除自己兼任的部门）
+        List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
+        for (Department childDept : childDepts) {
+            if (assignerManagedDeptIds.contains(childDept.getId())) {
+                continue; // 自己兼任负责人的部门，跳过（需切换到该部门负责人角色才可以下发）
+            }
+            addDeptHeads(childDept.getId(), currentUserId, selected);
+        }
+
+        return new ArrayList<>(selected.values());
+    }
+
+    /**
+     * 添加某部门的负责人到候选列表（包含 manager 和兼任负责人的 ceo/director）
+     */
+    private void addDeptHeads(String deptId, String excludeUserId, Map<String, User> selected) {
+        // 查找角色为 manager 的专职负责人
+        User manager = userMapper.selectManagerByDeptId(deptId, null);
+        if (manager != null && !manager.getId().equals(excludeUserId)
+                && manager.getStatus() != null && manager.getStatus() == 1) {
+            selected.put(manager.getId(), manager);
+        }
+        // 查找通过 managed_departments 兼任负责人的 ceo/director
+        List<String> managingUserIds = userManagedDeptMapper.selectUserIdsByDeptId(deptId);
+        for (String uid : managingUserIds) {
+            if (!uid.equals(excludeUserId)) {
+                User u = userMapper.selectById(uid);
+                if (u != null && u.getStatus() != null && u.getStatus() == 1
+                        && ("ceo".equals(u.getRole()) || "director".equals(u.getRole()))) {
+                    selected.put(u.getId(), u);
+                }
+            }
+        }
     }
 
     private void updateDeptMemberCount(String deptId) {

@@ -23,6 +23,7 @@ public interface TaskMapper {
     List<Task> selectTaskList(@Param("type") String type,
                               @Param("currentUserId") String currentUserId,
                               @Param("role") String role,
+                      @Param("currentDeptId") String currentDeptId,
                               @Param("managedUserIds") List<String> managedUserIds,
                               @Param("status") String status,
                               @Param("level") String level,
@@ -33,6 +34,7 @@ public interface TaskMapper {
     long countTaskList(@Param("type") String type,
                        @Param("currentUserId") String currentUserId,
                        @Param("role") String role,
+                  @Param("currentDeptId") String currentDeptId,
                        @Param("managedUserIds") List<String> managedUserIds,
                        @Param("status") String status,
                        @Param("level") String level,
@@ -67,6 +69,13 @@ public interface TaskMapper {
     List<Map<String, Object>> selectTrend(@Param("startDate") String startDate,
                                            @Param("endDate") String endDate,
                                            @Param("userIds") List<String> userIds);
+
+    /** 按月统计趋势 */
+    List<Map<String, Object>> selectMonthlyTrend(@Param("userIds") List<String> userIds);
+
+    /** 导出事务明细 */
+    List<Map<String, Object>> selectExportData(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate);
 
     /** 递归查询所有子任务ID */
     List<String> selectAllDescendantIds(@Param("parentTaskId") String parentTaskId);

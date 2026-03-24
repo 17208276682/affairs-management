@@ -1,23 +1,50 @@
 <template>
   <div class="dashboard-page">
-    <header class="dashboard-header">
-      <div>
-        <p class="dashboard-kicker">事务总览</p>
-        <h2>{{ panelConfig.title }}</h2>
-        <p class="dashboard-meta">
-          {{ userStore.userInfo?.deptName }} · {{ userStore.userInfo?.position }} · {{ panelConfig.subtitle }}
-        </p>
-      </div>
-      <div class="dashboard-clock">
-        <span>{{ greeting }}</span>
-        <strong>{{ nowLabel }}</strong>
-      </div>
-    </header>
-
     <section class="dashboard-split">
       <div class="left-panel">
-        <div class="left-panel__inner" :class="{ 'no-stats': !showDirectorStats }">
-          <div class="panel-row panel-status-row" :class="`count-${panelConfig.statuses.length}`">
+        <div class="left-panel__inner" :class="{ 'no-stats': !showChartPanel }">
+          <!-- 负责人：两栏状态卡片（上级事务 + 部门事务） -->
+          <template v-if="role === 'manager'">
+            <div class="panel-row panel-status-group">
+              <article class="panel-card status-group-card">
+                <div class="status-group-card__header">上级事务</div>
+                <div class="status-group__cards count-6">
+                  <div
+                    v-for="item in managerRecvStatuses"
+                    :key="item.key"
+                    class="status-card status-card--small"
+                    :style="{ '--status-color': item.color, '--status-glow': item.glow }"
+                  >
+                    <div class="status-card__top">
+                      <span class="status-dot"></span>
+                      <span class="status-name">{{ item.label }}</span>
+                    </div>
+                    <strong class="status-value">{{ statusCountMap[item.key] ?? 0 }}</strong>
+                  </div>
+                </div>
+              </article>
+              <article class="panel-card status-group-card">
+                <div class="status-group-card__header">部门事务</div>
+                <div class="status-group__cards count-6">
+                  <div
+                    v-for="item in managerDeptStatuses"
+                    :key="item.key"
+                    class="status-card status-card--small"
+                    :style="{ '--status-color': item.color, '--status-glow': item.glow }"
+                  >
+                    <div class="status-card__top">
+                      <span class="status-dot"></span>
+                      <span class="status-name">{{ item.label }}</span>
+                    </div>
+                    <strong class="status-value">{{ statusCountMap[item.key] ?? 0 }}</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </template>
+
+          <!-- 其他角色：单栏状态卡片 -->
+          <div v-else class="panel-row panel-status-row" :class="`count-${panelConfig.statuses.length}`">
             <article
               v-for="item in panelConfig.statuses"
               :key="item.key"
@@ -69,7 +96,7 @@
                 <div class="pie-legend">
                   <div v-for="item in pieDataset" :key="item.level" class="pie-legend__item">
                     <span class="pie-legend__dot" :style="{ background: item.color }"></span>
-                    <span class="pie-legend__label">{{ item.level }}级</span>
+                    <span class="pie-legend__label">{{ item.label }}</span>
                     <strong>{{ item.value }}</strong>
                   </div>
                 </div>
@@ -77,16 +104,53 @@
             </article>
           </div>
 
-          <div v-if="showDirectorStats" class="panel-row panel-chart-row">
+          <div v-if="showChartPanel" class="panel-row panel-chart-row">
             <article class="panel-card chart-panel bar-panel">
               <div class="panel-card__header">
                 <div>
                   <p class="panel-card__eyebrow">事务统计</p>
                   <h3>{{ panelConfig.barTitle }}</h3>
                 </div>
+                <div v-if="role === 'manager'" class="manager-chart-controls">
+                  <el-radio-group v-model="managerChartMode" size="small">
+                    <el-radio-button value="time">时间统计</el-radio-button>
+                    <el-radio-button value="person">人员统计</el-radio-button>
+                  </el-radio-group>
+                  <template v-if="managerChartMode === 'time'">
+                    <el-select v-model="managerSelectedUser" size="small" placeholder="全部人员" clearable style="width: 100px; margin-left: 8px">
+                      <el-option v-for="u in managedUsers" :key="u.id" :label="u.name" :value="u.name" />
+                    </el-select>
+                    <div class="line-month-selector" style="margin-left: 8px">
+                      <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
+                      <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
+                      <el-button size="small" :type="lineMonthMode === 'next' ? 'primary' : ''" @click="setLineMonth('next')">次月</el-button>
+                      <el-date-picker
+                        v-model="lineCustomMonth"
+                        type="month"
+                        placeholder="自定义月份"
+                        size="small"
+                        style="width: 130px; margin-left: 4px"
+                        @change="onCustomMonthChange"
+                      />
+                    </div>
+                  </template>
+                </div>
+                <div v-else-if="role === 'staff'" class="line-month-selector">
+                  <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
+                  <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
+                  <el-button size="small" :type="lineMonthMode === 'next' ? 'primary' : ''" @click="setLineMonth('next')">次月</el-button>
+                  <el-date-picker
+                    v-model="lineCustomMonth"
+                    type="month"
+                    placeholder="自定义月份"
+                    size="small"
+                    style="width: 130px; margin-left: 4px"
+                    @change="onCustomMonthChange"
+                  />
+                </div>
               </div>
 
-              <VChart class="chart chart-bar" :option="barOption" autoresize />
+              <VChart class="chart chart-bar" :option="role === 'staff' ? lineOption : (role === 'manager' && managerChartMode === 'time') ? managerLineOption : barOption" autoresize />
             </article>
           </div>
         </div>
@@ -133,7 +197,7 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: TASK_LEVEL_MAP[task.level as TaskLevel]?.color }"
+                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
                           <div class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</div>
                           <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }} · {{ task.executorName }}</div>
@@ -176,7 +240,7 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: TASK_LEVEL_MAP[task.level as TaskLevel]?.color }"
+                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
                           <div class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</div>
                           <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }} · {{ task.executorName }}</div>
@@ -219,7 +283,7 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: TASK_LEVEL_MAP[task.level as TaskLevel]?.color }"
+                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
                           <div class="time-task-title">{{ (task.description || task.title).substring(0, 16) }}</div>
                           <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }}</div>
@@ -245,23 +309,38 @@
                 </div>
 
                 <div class="month-grid">
-                  <div
+                  <el-tooltip
                     v-for="(cell, idx) in monthCells"
                     :key="idx"
-                    class="month-cell"
-                    :class="{ 'other-month': !cell.isCurrentMonth, 'is-today': cell.isToday }"
+                    :disabled="!cell.tasks.length"
+                    placement="top"
+                    effect="dark"
+                    :show-after="200"
                   >
-                    <div class="month-cell-date">{{ cell.day }}</div>
-                    <div v-if="cell.tasks.length" class="month-cell-dots">
-                      <span
-                        v-for="task in cell.tasks.slice(0, 3)"
-                        :key="task.id"
-                        class="month-dot"
-                        :style="{ background: TASK_LEVEL_MAP[task.level as TaskLevel]?.color }"
-                      />
-                      <span v-if="cell.tasks.length > 3" class="month-more">+{{ cell.tasks.length - 3 }}</span>
+                    <template #content>
+                      <div v-for="task in cell.tasks" :key="task.id" class="month-tip-row">
+                        <span class="month-tip-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                        {{ (task.description || task.title).substring(0, 15) }}
+                      </div>
+                    </template>
+                    <div
+                      class="month-cell"
+                      :class="{ 'other-month': !cell.isCurrentMonth, 'is-today': cell.isToday }"
+                    >
+                      <div class="month-cell-date">{{ cell.day }}</div>
+                      <div v-if="cell.tasks.length" class="month-cell-tasks">
+                        <div
+                          v-for="task in cell.tasks.slice(0, 2)"
+                          :key="task.id"
+                          class="month-task-item"
+                        >
+                          <span class="month-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                          <span class="month-task-text">{{ (task.description || task.title).substring(0, 4) }}</span>
+                        </div>
+                        <span v-if="cell.tasks.length > 2" class="month-task-more">+{{ cell.tasks.length - 2 }}</span>
+                      </div>
                     </div>
-                  </div>
+                  </el-tooltip>
                 </div>
               </div>
             </el-tab-pane>
@@ -282,7 +361,7 @@
                     </div>
 
                     <div class="quadrant-list">
-                      <div v-for="task in quadrant.tasks" :key="task.id" class="quadrant-item">
+                      <div v-for="task in quadrant.tasks" :key="task.id" class="quadrant-item" :style="{ borderLeftColor: getTaskStatusColor(task) }">
                         <div class="quadrant-item-desc">{{ (task.description || task.title).substring(0, 20) }}</div>
                         <div class="quadrant-item-meta">{{ task.executorName }} · {{ statusDisplay(task.status).label }}</div>
                       </div>
@@ -303,7 +382,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { PieChart, BarChart } from 'echarts/charts'
+import { PieChart, BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { ArrowLeftBold, ArrowRightBold } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -312,14 +391,18 @@ import dayjs from 'dayjs'
 import { useUserStore } from '@/stores'
 import { TASK_LEVEL_MAP } from '@/utils/constants'
 import { formatRelativeTime } from '@/utils/format'
-import { getRecentActivitiesApi, getStatsByDeptApi, getStatsByPersonApi } from '@/api/statistics'
+import { getRecentActivitiesApi, getStatsByDeptApi, getStatsByPersonApi, getStatsOverviewApi } from '@/api/statistics'
+import { getSubordinatesApi } from '@/api/organization'
 import { getTaskListApi } from '@/api/task'
-import type { DeptStats, PersonStats, Task, TaskLevel } from '@/types'
+import type { DeptStats, PersonStats, StatsOverview, Task, TaskLevel, User } from '@/types'
 
-use([CanvasRenderer, PieChart, BarChart, GridComponent, LegendComponent, TooltipComponent])
+use([CanvasRenderer, PieChart, BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent])
 
 type PanelRole = 'director' | 'manager' | 'staff'
 type StatusKey = 'assigned' | 'pending' | 'completed' | 'rejected' | 'cancelled' | 'overdue'
+  | 'onTimeCompleted' | 'overdueCompleted' | 'failedReview' | 'todoTasks' | 'overdueUnfinished'
+  | 'recv_onTimeCompleted' | 'recv_overdueCompleted' | 'recv_failedReview' | 'recv_todoTasks' | 'recv_overdueUnfinished' | 'recv_cancelled'
+  | 'dept_onTimeCompleted' | 'dept_overdueCompleted' | 'dept_failedReview' | 'dept_todoTasks' | 'dept_overdueUnfinished' | 'dept_cancelled'
 
 interface StatusCardConfig {
   key: StatusKey
@@ -338,6 +421,8 @@ const todoTasks = ref<Task[]>([])
 const receivedTasks = ref<Task[]>([])
 const deptStats = ref<DeptStats[]>([])
 const personStats = ref<PersonStats[]>([])
+const statsOverview = ref<StatsOverview | null>(null)
+const managedUsers = ref<User[]>([])
 const nowLabel = ref(formatNow())
 
 const activeTab = ref('day')
@@ -347,6 +432,7 @@ const weekOffset = ref(0)
 const monthOffset = ref(0)
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const showDirectorStats = computed(() => userStore.isDirector)
+const showChartPanel = computed(() => true)
 
 let timer: number | undefined
 
@@ -359,10 +445,29 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
+const submittedCount = computed(() => statsOverview.value?.submittedTasks ?? 0)
+
+const managerRecvStatuses: StatusCardConfig[] = [
+  { key: 'recv_onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
+  { key: 'recv_overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
+  { key: 'recv_failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
+  { key: 'recv_todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
+  { key: 'recv_overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+  { key: 'recv_cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
+]
+const managerDeptStatuses: StatusCardConfig[] = [
+  { key: 'dept_onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
+  { key: 'dept_overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
+  { key: 'dept_failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
+  { key: 'dept_todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
+  { key: 'dept_overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+  { key: 'dept_cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
+]
+
 const role = computed<PanelRole>(() => {
-  const currentRole = userStore.userInfo?.role
-  if (currentRole === 'manager') return 'manager'
-  if (currentRole === 'staff') return 'staff'
+  const cr = userStore.currentRole
+  if (cr === 'manager') return 'manager'
+  if (cr === 'staff') return 'staff'
   return 'director'
 })
 
@@ -371,45 +476,39 @@ const panelConfig = computed(() => {
     director: {
       title: '高级管理者事务驾驶舱',
       subtitle: '全局协同视角',
-      activityTitle: '下级提交动态',
-      pieTitle: '已下达事务四个级别',
-      barTitle: '部门总事务数 / 已完成数',
+      activityTitle: '下级动态',
+      pieTitle: '已下达事务级别分布',
+      barTitle: '人员事务状态分布',
       statuses: [
-        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '我的下达菜单数量' },
-        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
-        { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '流程已闭环' },
-        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
-        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
-        { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过节点时限' },
+        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
+        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
+        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
+        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
+        { key: 'overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
       ] satisfies StatusCardConfig[],
     },
     manager: {
       title: '中级管理者事务驾驶舱',
       subtitle: '部门协同视角',
       activityTitle: '上下级动态',
-      pieTitle: '待办理事务四个级别',
-      barTitle: '人员总事务数 / 已完成数',
-      statuses: [
-        { key: 'assigned', label: '已下达', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '我的下达菜单数量' },
-        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
-        { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '已完成闭环' },
-        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
-        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
-        { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超时未结项' },
-      ] satisfies StatusCardConfig[],
+      pieTitle: '上下级事务级别分布',
+      barTitle: '人员事务状态分布',
+      statuses: [] as StatusCardConfig[],
     },
     staff: {
       title: '普通员工事务驾驶舱',
       subtitle: '个人执行视角',
-      activityTitle: '上级转交动态',
-      pieTitle: '待办理事务四个级别',
-      barTitle: '个人总事务数 / 已完成数',
+      activityTitle: '我的动态',
+      pieTitle: '我的事务级别分布',
+      barTitle: '每日事务状态趋势',
       statuses: [
-        { key: 'pending', label: '待处理', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '我的代办菜单数量' },
-        { key: 'completed', label: '已完成', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '审核已通过' },
-        { key: 'rejected', label: '不通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过' },
-        { key: 'cancelled', label: '已作废', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
-        { key: 'overdue', label: '已逾期', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过办理时限' },
+        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
+        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
+        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
+        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
+        { key: 'overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
       ] satisfies StatusCardConfig[],
     },
   }
@@ -420,28 +519,88 @@ const panelConfig = computed(() => {
 const directorRootTasks = computed(() => assignedTasks.value.filter(task => !task.parentTaskId))
 const taskPool = computed(() => (role.value === 'director' ? directorRootTasks.value : receivedTasks.value))
 const allCalendarTasks = computed(() => {
-  const source = role.value === 'director' ? directorRootTasks.value : taskPool.value
+  const source = role.value === 'director' ? directorRootTasks.value
+    : role.value === 'manager' ? [...receivedTasks.value, ...directorRootTasks.value]
+    : taskPool.value
   return [...source].sort((a, b) => new Date(a.completionDeadline).getTime() - new Date(b.completionDeadline).getTime())
 })
 
 const statusCountMap = computed<Record<StatusKey, number>>(() => {
+  const ov = statsOverview.value
+
+  // 通用的任务分类函数
+  function classifyTasks(tasks: Task[]) {
+    const now = new Date()
+    let onTimeCompleted = 0, overdueCompleted = 0, failedReview = 0, todoTasks = 0, overdueUnfinished = 0, cancelled = 0
+    for (const task of tasks) {
+      const status = task.status
+      const deadline = task.completionDeadline ? new Date(task.completionDeadline) : null
+      const completionTime = task.completionTime ? new Date(task.completionTime) : null
+      if (['approved', 'completed'].includes(status)) {
+        if (!deadline || (completionTime && completionTime <= deadline)) onTimeCompleted++
+        else overdueCompleted++
+      } else if (status === 'rejected') {
+        failedReview++
+      } else if (status === 'cancelled') {
+        cancelled++
+      } else if (deadline && deadline < now) {
+        overdueUnfinished++
+      } else {
+        todoTasks++
+      }
+    }
+    return { onTimeCompleted, overdueCompleted, failedReview, todoTasks, overdueUnfinished, cancelled }
+  }
+
+  // manager: 分别统计收到的事务和下发的事务
+  const recv = classifyTasks(receivedTasks.value)
+  const dept = classifyTasks(directorRootTasks.value)
+
   return {
-    // 已下达：对应我的下达菜单
     assigned: assignedTasks.value.length,
-    // 待处理：对应我的代办菜单
     pending: todoTasks.value.length,
-    // 以下四项：对应事务列表菜单里的状态
     completed: scopeTasks.value.filter(task => isDisplayCompleted(task.status)).length,
     rejected: scopeTasks.value.filter(task => task.status === 'rejected').length,
-    cancelled: scopeTasks.value.filter(task => task.status === 'cancelled').length,
+    cancelled: ov ? ov.cancelledTasks : scopeTasks.value.filter(task => task.status === 'cancelled').length,
     overdue: scopeTasks.value.filter(task => task.status === 'overdue').length,
+    onTimeCompleted: ov?.onTimeCompleted ?? 0,
+    overdueCompleted: ov?.overdueCompleted ?? 0,
+    failedReview: ov?.failedReview ?? 0,
+    todoTasks: ov?.todoTasks ?? 0,
+    overdueUnfinished: ov?.overdueUnfinished ?? 0,
+    // manager 上级事务（收到的）
+    recv_onTimeCompleted: recv.onTimeCompleted,
+    recv_overdueCompleted: recv.overdueCompleted,
+    recv_failedReview: recv.failedReview,
+    recv_todoTasks: recv.todoTasks,
+    recv_overdueUnfinished: recv.overdueUnfinished,
+    recv_cancelled: recv.cancelled,
+    // manager 部门事务（下发的）
+    dept_onTimeCompleted: dept.onTimeCompleted,
+    dept_overdueCompleted: dept.overdueCompleted,
+    dept_failedReview: dept.failedReview,
+    dept_todoTasks: dept.todoTasks,
+    dept_overdueUnfinished: dept.overdueUnfinished,
+    dept_cancelled: dept.cancelled,
   }
 })
 
+const LEVEL_CHINESE_MAP: Record<string, string> = {
+  A: '重要紧急',
+  B: '不重要紧急',
+  C: '重要不紧急',
+  D: '不重要不紧急',
+}
+
 const pieDataset = computed(() => {
+  const useChinese = true
+  const pool = role.value === 'manager'
+    ? [...receivedTasks.value, ...directorRootTasks.value]
+    : role.value === 'staff' ? receivedTasks.value : taskPool.value
   return (['A', 'B', 'C', 'D'] as TaskLevel[]).map(level => ({
     level,
-    value: taskPool.value.filter(task => task.level === level && (role.value === 'director' ? true : isActiveTask(task.status))).length,
+    label: useChinese ? LEVEL_CHINESE_MAP[level] : `${level}级`,
+    value: pool.filter(task => task.level === level).length,
     color: TASK_LEVEL_MAP[level].color,
   }))
 })
@@ -476,7 +635,7 @@ const pieOption = computed<EChartsOption>(() => ({
         borderWidth: 4,
       },
       data: pieDataset.value.map(item => ({
-        name: `${item.level}级`,
+        name: item.label,
         value: item.value,
         itemStyle: { color: item.color },
       })),
@@ -484,17 +643,233 @@ const pieOption = computed<EChartsOption>(() => ({
   ],
 }))
 
-const barSource = computed(() => deptStats.value.map(d => ({
-  label: d.deptName,
-  total: d.total,
-  completed: d.completed,
-})))
+const barSource = computed(() => {
+  if (role.value === 'director' || role.value === 'manager') {
+    // 总经办/负责人：先用管理的人员列表作为基准（确保无任务的人也显示）
+    const initEntry = () => ({ onTimeCompleted: 0, overdueCompleted: 0, failedReview: 0, todoTasks: 0, overdueUnfinished: 0, cancelledTasks: 0 })
+    const executorMap = new Map<string, { label: string } & ReturnType<typeof initEntry>>()
+    for (const u of managedUsers.value) {
+      executorMap.set(u.name, { label: u.name, ...initEntry() })
+    }
+    const now = new Date()
+    for (const task of directorRootTasks.value) {
+      const name = task.executorName
+      if (!executorMap.has(name)) {
+        executorMap.set(name, { label: name, ...initEntry() })
+      }
+      const entry = executorMap.get(name)!
+      const status = task.status
+      const deadline = task.completionDeadline ? new Date(task.completionDeadline) : null
+      const completionTime = task.completionTime ? new Date(task.completionTime) : null
 
-const barOption = computed<EChartsOption>(() => ({
-  grid: { top: 20, right: 16, bottom: 6, left: 12, containLabel: true },
+      if (['approved', 'completed'].includes(status)) {
+        if (!deadline || (completionTime && completionTime <= deadline)) {
+          entry.onTimeCompleted++
+        } else {
+          entry.overdueCompleted++
+        }
+      } else if (status === 'rejected') {
+        entry.failedReview++
+      } else if (status === 'cancelled') {
+        entry.cancelledTasks++
+      } else if (deadline && deadline < now) {
+        entry.overdueUnfinished++
+      } else {
+        entry.todoTasks++
+      }
+    }
+    return Array.from(executorMap.values())
+  }
+  return deptStats.value.map(d => ({
+    label: d.deptName,
+    total: d.total,
+    completed: d.completed,
+  }))
+})
+
+const STACKED_SERIES = [
+  { key: 'onTimeCompleted', name: '按时完成', color: '#4dbb87' },
+  { key: 'overdueCompleted', name: '逾期完成', color: '#f3a64b' },
+  { key: 'failedReview', name: '审核未通过', color: '#e06472' },
+  { key: 'todoTasks', name: '待办事务', color: '#5a8dee' },
+  { key: 'overdueUnfinished', name: '逾期未完成', color: '#de5a6a' },
+  { key: 'cancelledTasks', name: '已作废', color: '#96a0af' },
+] as const
+
+const barOption = computed<EChartsOption>(() => {
+  if (role.value === 'director' || role.value === 'manager') {
+    return {
+      grid: { top: 30, right: 16, bottom: 6, left: 12, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: 'rgba(36, 50, 74, 0.92)',
+        borderWidth: 0,
+        textStyle: { color: '#fff' },
+      },
+      legend: {
+        right: 0,
+        top: 0,
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: '#708097', fontSize: 12 },
+      },
+      xAxis: {
+        type: 'category',
+        data: barSource.value.map(item => item.label),
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: '#dbe4f0' } },
+        axisLabel: { color: '#607087', fontSize: 12, interval: 0 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
+        axisLabel: { color: '#8391a4', fontSize: 12 },
+      },
+      series: STACKED_SERIES.map(s => ({
+        name: s.name,
+        type: 'bar' as const,
+        stack: 'total',
+        barMaxWidth: 32,
+        itemStyle: { color: s.color },
+        data: barSource.value.map(item => (item as any)[s.key] ?? 0),
+      })),
+    }
+  }
+
+  return {
+    grid: { top: 20, right: 16, bottom: 6, left: 12, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(36, 50, 74, 0.92)',
+      borderWidth: 0,
+      textStyle: { color: '#fff' },
+    },
+    legend: {
+      right: 0,
+      top: 0,
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: { color: '#708097', fontSize: 12 },
+    },
+    xAxis: {
+      type: 'category',
+      data: barSource.value.map(item => item.label),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#dbe4f0' } },
+      axisLabel: { color: '#607087', fontSize: 12, interval: 0 },
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
+      axisLabel: { color: '#8391a4', fontSize: 12 },
+    },
+    series: [
+      {
+        name: '总事务数',
+        type: 'bar',
+        barMaxWidth: 22,
+        itemStyle: {
+          borderRadius: [10, 10, 0, 0],
+          color: '#93b7ff',
+        },
+        data: barSource.value.map(item => (item as any).total ?? 0),
+      },
+      {
+        name: '已完成数',
+        type: 'bar',
+        barMaxWidth: 22,
+        itemStyle: {
+          borderRadius: [10, 10, 0, 0],
+          color: '#67c8a0',
+        },
+        data: barSource.value.map(item => (item as any).completed ?? 0),
+      },
+    ],
+  }
+})
+
+// ——— 员工折线图：月度选择器 + 每日六线 ———
+const lineMonthMode = ref<'prev' | 'current' | 'next' | 'custom'>('current')
+const lineCustomMonth = ref<Date | null>(null)
+const managerChartMode = ref<'time' | 'person'>('person')
+const managerSelectedUser = ref('')
+
+const lineMonthBase = computed(() => {
+  if (lineMonthMode.value === 'prev') return dayjs().subtract(1, 'month')
+  if (lineMonthMode.value === 'next') return dayjs().add(1, 'month')
+  if (lineMonthMode.value === 'custom' && lineCustomMonth.value) return dayjs(lineCustomMonth.value)
+  return dayjs()
+})
+
+function setLineMonth(mode: 'prev' | 'current' | 'next') {
+  lineMonthMode.value = mode
+  lineCustomMonth.value = null
+}
+function onCustomMonthChange(val: Date | null) {
+  if (val) lineMonthMode.value = 'custom'
+}
+
+const LINE_SERIES_DEF = [
+  { key: 'onTimeCompleted', name: '按时完成', color: '#4dbb87' },
+  { key: 'overdueCompleted', name: '逾期完成', color: '#f3a64b' },
+  { key: 'failedReview', name: '审核未通过', color: '#e06472' },
+  { key: 'todoTasks', name: '待办事务', color: '#5a8dee' },
+  { key: 'overdueUnfinished', name: '逾期未完成', color: '#de5a6a' },
+  { key: 'cancelledTasks', name: '已作废', color: '#96a0af' },
+] as const
+
+const lineChartData = computed(() => {
+  const base = lineMonthBase.value.startOf('month')
+  const daysInMonth = base.daysInMonth()
+  const dates: string[] = []
+  const dataMap: Record<string, number[]> = {}
+  for (const s of LINE_SERIES_DEF) dataMap[s.key] = []
+
+  for (let d = 0; d < daysInMonth; d++) {
+    const dateStr = base.add(d, 'day').format('YYYY-MM-DD')
+    dates.push(base.add(d, 'day').format('M/D'))
+    const counts: Record<string, number> = {}
+    for (const s of LINE_SERIES_DEF) counts[s.key] = 0
+
+    for (const task of receivedTasks.value) {
+      // 按事务创建日期归类到当天
+      const taskDate = dayjs(task.createdAt).format('YYYY-MM-DD')
+      if (taskDate !== dateStr) continue
+
+      const status = task.status
+      const deadline = task.completionDeadline ? new Date(task.completionDeadline) : null
+      const completionTime = task.completionTime ? new Date(task.completionTime) : null
+      const now = new Date()
+
+      if (['approved', 'completed'].includes(status)) {
+        if (!deadline || (completionTime && completionTime <= deadline)) {
+          counts.onTimeCompleted++
+        } else {
+          counts.overdueCompleted++
+        }
+      } else if (status === 'rejected') {
+        counts.failedReview++
+      } else if (status === 'cancelled') {
+        counts.cancelledTasks++
+      } else if (deadline && deadline < now) {
+        counts.overdueUnfinished++
+      } else {
+        counts.todoTasks++
+      }
+    }
+
+    for (const s of LINE_SERIES_DEF) dataMap[s.key].push(counts[s.key])
+  }
+
+  return { dates, dataMap }
+})
+
+const lineOption = computed<EChartsOption>(() => ({
+  grid: { top: 36, right: 16, bottom: 6, left: 12, containLabel: true },
   tooltip: {
     trigger: 'axis',
-    axisPointer: { type: 'shadow' },
     backgroundColor: 'rgba(36, 50, 74, 0.92)',
     borderWidth: 0,
     textStyle: { color: '#fff' },
@@ -502,44 +877,125 @@ const barOption = computed<EChartsOption>(() => ({
   legend: {
     right: 0,
     top: 0,
-    itemWidth: 10,
-    itemHeight: 10,
+    itemWidth: 16,
+    itemHeight: 3,
     textStyle: { color: '#708097', fontSize: 12 },
   },
   xAxis: {
     type: 'category',
-    data: barSource.value.map(item => item.label),
+    data: lineChartData.value.dates,
+    boundaryGap: false,
     axisTick: { show: false },
     axisLine: { lineStyle: { color: '#dbe4f0' } },
-    axisLabel: { color: '#607087', fontSize: 12, interval: 0 },
+    axisLabel: { color: '#607087', fontSize: 11, interval: 'auto' },
   },
   yAxis: {
     type: 'value',
+    minInterval: 1,
     splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
     axisLabel: { color: '#8391a4', fontSize: 12 },
   },
-  series: [
-    {
-      name: '总事务数',
-      type: 'bar',
-      barMaxWidth: 22,
-      itemStyle: {
-        borderRadius: [10, 10, 0, 0],
-        color: '#93b7ff',
-      },
-      data: barSource.value.map(item => item.total),
-    },
-    {
-      name: '已完成数',
-      type: 'bar',
-      barMaxWidth: 22,
-      itemStyle: {
-        borderRadius: [10, 10, 0, 0],
-        color: '#67c8a0',
-      },
-      data: barSource.value.map(item => item.completed),
-    },
-  ],
+  series: LINE_SERIES_DEF.map(s => ({
+    name: s.name,
+    type: 'line' as const,
+    smooth: true,
+    symbol: 'circle',
+    symbolSize: 4,
+    lineStyle: { width: 2, color: s.color },
+    itemStyle: { color: s.color },
+    data: lineChartData.value.dataMap[s.key],
+  })),
+}))
+
+// ——— 负责人折线图：按人员筛选 + 每日六线 ———
+const managerLineChartData = computed(() => {
+  const base = lineMonthBase.value.startOf('month')
+  const daysInMonth = base.daysInMonth()
+  const dates: string[] = []
+  const dataMap: Record<string, number[]> = {}
+  for (const s of LINE_SERIES_DEF) dataMap[s.key] = []
+
+  const taskSource = managerSelectedUser.value
+    ? directorRootTasks.value.filter(t => t.executorName === managerSelectedUser.value)
+    : directorRootTasks.value
+
+  for (let d = 0; d < daysInMonth; d++) {
+    const dateStr = base.add(d, 'day').format('YYYY-MM-DD')
+    dates.push(base.add(d, 'day').format('M/D'))
+    const counts: Record<string, number> = {}
+    for (const s of LINE_SERIES_DEF) counts[s.key] = 0
+
+    for (const task of taskSource) {
+      const taskDate = dayjs(task.createdAt).format('YYYY-MM-DD')
+      if (taskDate !== dateStr) continue
+
+      const status = task.status
+      const deadline = task.completionDeadline ? new Date(task.completionDeadline) : null
+      const completionTime = task.completionTime ? new Date(task.completionTime) : null
+      const now = new Date()
+
+      if (['approved', 'completed'].includes(status)) {
+        if (!deadline || (completionTime && completionTime <= deadline)) {
+          counts.onTimeCompleted++
+        } else {
+          counts.overdueCompleted++
+        }
+      } else if (status === 'rejected') {
+        counts.failedReview++
+      } else if (status === 'cancelled') {
+        counts.cancelledTasks++
+      } else if (deadline && deadline < now) {
+        counts.overdueUnfinished++
+      } else {
+        counts.todoTasks++
+      }
+    }
+
+    for (const s of LINE_SERIES_DEF) dataMap[s.key].push(counts[s.key])
+  }
+
+  return { dates, dataMap }
+})
+
+const managerLineOption = computed<EChartsOption>(() => ({
+  grid: { top: 36, right: 16, bottom: 6, left: 12, containLabel: true },
+  tooltip: {
+    trigger: 'axis',
+    backgroundColor: 'rgba(36, 50, 74, 0.92)',
+    borderWidth: 0,
+    textStyle: { color: '#fff' },
+  },
+  legend: {
+    right: 0,
+    top: 0,
+    itemWidth: 16,
+    itemHeight: 3,
+    textStyle: { color: '#708097', fontSize: 12 },
+  },
+  xAxis: {
+    type: 'category',
+    data: managerLineChartData.value.dates,
+    boundaryGap: false,
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: '#dbe4f0' } },
+    axisLabel: { color: '#607087', fontSize: 11, interval: 'auto' },
+  },
+  yAxis: {
+    type: 'value',
+    minInterval: 1,
+    splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
+    axisLabel: { color: '#8391a4', fontSize: 12 },
+  },
+  series: LINE_SERIES_DEF.map(s => ({
+    name: s.name,
+    type: 'line' as const,
+    smooth: true,
+    symbol: 'circle',
+    symbolSize: 4,
+    lineStyle: { width: 2, color: s.color },
+    itemStyle: { color: s.color },
+    data: managerLineChartData.value.dataMap[s.key],
+  })),
 }))
 
 const currentDay = computed(() => dayjs().add(dayOffset.value, 'day'))
@@ -722,6 +1178,22 @@ function statusDisplay(status: Task['status']) {
   return { label: '待处理', color: '#ec9a39', bgColor: '#fff8e9' }
 }
 
+/** 根据事务状态返回总览卡片对应颜色（按时完成/逾期完成/审核未通过/待办/逾期未完成/作废） */
+function getTaskStatusColor(task: Task): string {
+  const status = task.status
+  const deadline = task.completionDeadline ? new Date(task.completionDeadline) : null
+  const completionTime = task.completionTime ? new Date(task.completionTime) : null
+  const now = new Date()
+  if (['approved', 'completed'].includes(status)) {
+    if (!deadline || (completionTime && completionTime <= deadline)) return '#4dbb87' // 按时完成
+    return '#f3a64b' // 逾期完成
+  }
+  if (status === 'rejected') return '#e06472'
+  if (status === 'cancelled') return '#96a0af'
+  if (deadline && deadline < now) return '#de5a6a' // 逾期未完成
+  return '#5a8dee' // 待办
+}
+
 function isCompletedTask(status: Task['status']) {
   return ['completed', 'approved'].includes(status)
 }
@@ -757,7 +1229,7 @@ function formatNow() {
 }
 
 async function loadDashboard() {
-  const [activitiesRes, assignedRes, scopeRes, todoRes, receivedRes, deptRes, personRes] = await Promise.all([
+  const [activitiesRes, assignedRes, scopeRes, todoRes, receivedRes, deptRes, personRes, overviewRes, subsRes] = await Promise.all([
     getRecentActivitiesApi(),
     getTaskListApi({ type: 'assigned', page: 1, pageSize: 200 }),
     getTaskListApi({ type: 'scope', page: 1, pageSize: 200 }),
@@ -765,6 +1237,8 @@ async function loadDashboard() {
     getTaskListApi({ type: 'received', page: 1, pageSize: 200 }),
     getStatsByDeptApi(),
     getStatsByPersonApi(),
+    getStatsOverviewApi(),
+    getSubordinatesApi().catch(() => ({ data: [] as User[] })),
   ])
 
   roleActivities.value = activitiesRes.data
@@ -774,6 +1248,8 @@ async function loadDashboard() {
   receivedTasks.value = receivedRes.data.list
   deptStats.value = deptRes.data
   personStats.value = personRes.data
+  statsOverview.value = overviewRes.data
+  managedUsers.value = subsRes.data
 }
 
 onMounted(async () => {
@@ -793,80 +1269,44 @@ onBeforeUnmount(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
-}
-
-.dashboard-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-
-  h2 {
-    margin: 4px 0 6px;
-    font-size: 30px;
-    line-height: 1.15;
-    color: #20304d;
-  }
-}
-
-.dashboard-kicker {
-  color: #6d91db;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.dashboard-meta {
-  color: #748398;
-  font-size: 14px;
-}
-
-.dashboard-clock {
-  min-width: 168px;
-  padding: 14px 18px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 251, 255, 0.88));
-  border: 1px solid rgba(219, 228, 240, 0.9);
-  box-shadow: 0 12px 30px rgba(146, 166, 198, 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #6b7c91;
-
-  strong {
-    font-size: 22px;
-    color: #22324a;
-  }
+  overflow: hidden;
 }
 
 .dashboard-split {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
+  padding: 14px;
 }
 
 .left-panel,
 .right-panel {
   min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .left-panel__inner,
 .view-shell {
+  flex: 1;
   height: 100%;
   min-height: 0;
 }
 
 .left-panel__inner {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(0, 0.9fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
 
   &.no-stats {
     grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  > .panel-row {
+    min-height: 0;
   }
 }
 
@@ -880,6 +1320,46 @@ onBeforeUnmount(() => {
 
   &.count-6 {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.panel-status-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.status-group-card {
+  padding: 16px;
+}
+
+.status-group-card__header {
+  font-size: 15px;
+  font-weight: 600;
+  color: #22324a;
+  margin-bottom: 12px;
+  padding-left: 2px;
+}
+
+.status-group__cards {
+  display: grid;
+  gap: 8px;
+
+  &.count-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.status-card--small {
+  padding: 10px 12px;
+  border-radius: 16px;
+
+  .status-value {
+    font-size: 22px;
+  }
+
+  .status-name {
+    font-size: 11px;
   }
 }
 
@@ -943,6 +1423,17 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.panel-chart-row {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  > .panel-card {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 .panel-card,
 .view-shell {
   min-height: 0;
@@ -980,6 +1471,21 @@ onBeforeUnmount(() => {
   color: #8ba0c2;
 }
 
+.line-month-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.manager-chart-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .panel-card__badge {
   padding: 6px 12px;
   border-radius: 999px;
@@ -996,6 +1502,24 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f0f2f5;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #c0c8d4;
+    border-radius: 3px;
+
+    &:hover {
+      background: #a0aab6;
+    }
+  }
 }
 
 .activity-item {
@@ -1330,22 +1854,55 @@ onBeforeUnmount(() => {
   margin-bottom: 4px;
 }
 
-.month-cell-dots {
+.month-cell-tasks {
   display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.month-task-item {
+  display: flex;
   align-items: center;
+  gap: 3px;
 }
 
-.month-dot {
-  width: 8px;
-  height: 8px;
+.month-task-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.month-more {
+.month-task-text {
+  font-size: 10px;
+  color: #475669;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.month-task-more {
   font-size: 10px;
   color: #8b98aa;
+}
+
+.month-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.8;
+  font-size: 12px;
+}
+
+.month-tip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .quadrant-grid {
@@ -1411,6 +1968,7 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
+  border-left: 3px solid;
 }
 
 .quadrant-item-desc {
@@ -1694,8 +2252,12 @@ onBeforeUnmount(() => {
   color: $text-regular;
 }
 
-.month-more {
+.month-task-more {
   color: $text-secondary;
+}
+
+.month-task-text {
+  color: $text-regular;
 }
 
 .quadrant-box {
@@ -1726,16 +2288,26 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1400px) {
-  .dashboard-page {
-    height: auto;
-  }
-
   .dashboard-split {
     grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .dashboard-page {
+    overflow: auto;
+  }
+
+  .left-panel,
+  .right-panel {
+    overflow: visible;
   }
 
   .left-panel__inner {
     grid-template-rows: auto auto auto;
+  }
+
+  .view-shell {
+    min-height: 600px;
   }
 }
 
@@ -1748,19 +2320,16 @@ onBeforeUnmount(() => {
   .panel-middle-row {
     grid-template-columns: 1fr;
   }
+
+  .panel-status-group {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
-  .dashboard-header {
-    flex-direction: column;
-
-    h2 {
-      font-size: 26px;
-    }
-  }
-
-  .dashboard-clock {
-    width: 100%;
+  .dashboard-split {
+    padding: 8px;
+    gap: 10px;
   }
 
   .panel-status-row.count-5,
@@ -1771,6 +2340,10 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
+  .status-group__cards.count-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .time-head-time,
   .time-hour {
     display: none;
@@ -1778,6 +2351,11 @@ onBeforeUnmount(() => {
 
   .pie-panel__body {
     grid-template-columns: 1fr;
+  }
+
+  .manager-chart-controls {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

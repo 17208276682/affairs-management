@@ -193,7 +193,6 @@
         :title="previewTitle"
         :mime-type="previewMimeType"
         @update:visible="handlePreviewVisibleChange"
-        @download="downloadCurrentPreview"
       />
     </template>
   </div>
@@ -233,9 +232,30 @@ const previewTitle = ref('')
 const previewMimeType = ref('')
 const previewAttachmentId = ref('')
 
+function isPreviewable(name?: string, mimeType?: string) {
+  const ext = (name || '').split('.').pop()?.toLowerCase() || ''
+  const mime = (mimeType || '').toLowerCase()
+
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) return true
+  if (mime === 'application/pdf' || ext === 'pdf') return true
+  if (
+    mime.startsWith('text/')
+    || mime === 'application/json'
+    || mime === 'application/xml'
+    || mime === 'application/javascript'
+    || mime.endsWith('+json')
+    || mime.endsWith('+xml')
+    || mime === 'text/html'
+    || ['txt', 'md', 'json', 'xml', 'csv', 'log', 'html', 'htm'].includes(ext)
+  ) return true
+  if (mime.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return true
+  if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(ext)) return true
+  return false
+}
+
 function openPreview(fileId: string, name?: string, mimeType?: string) {
   previewAttachmentId.value = fileId
-  previewUrl.value = buildPreviewUrl(fileId)
+  previewUrl.value = isPreviewable(name, mimeType) ? buildPreviewUrl(fileId) : ''
   previewTitle.value = name || '附件预览'
   previewMimeType.value = mimeType || ''
   previewVisible.value = true
@@ -243,12 +263,6 @@ function openPreview(fileId: string, name?: string, mimeType?: string) {
 
 function openDownload(fileId: string) {
   window.open(buildDownloadUrl(fileId), '_blank')
-}
-
-function downloadCurrentPreview() {
-  if (previewAttachmentId.value) {
-    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
-  }
 }
 
 function handlePreviewVisibleChange(visible: boolean) {

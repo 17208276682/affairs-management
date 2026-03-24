@@ -6,6 +6,7 @@ import com.affairs.management.dto.request.ChangePasswordRequest;
 import com.affairs.management.dto.request.LoginRequest;
 import com.affairs.management.dto.request.ResetPasswordRequest;
 import com.affairs.management.dto.response.LoginResponse;
+import com.affairs.management.dto.response.RoleContext;
 import com.affairs.management.dto.response.UserVO;
 import com.affairs.management.entity.Department;
 import com.affairs.management.entity.User;
@@ -17,10 +18,10 @@ import com.affairs.management.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -33,7 +34,6 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final DeptMapper deptMapper;
     private final UserManagedDeptMapper userManagedDeptMapper;
-    private final PasswordEncoder passwordEncoder;
 
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Pattern PASSWORD_PATTERN =
@@ -45,6 +45,9 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
         User user = userMapper.selectByUsername(request.getUsername());
+        if (user == null) {
+            user = userMapper.selectByPhone(request.getUsername());
+        }
         if (user == null) {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
@@ -70,6 +73,52 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public List<RoleContext> getRoleContexts(String userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        List<RoleContext> contexts = new ArrayList<>();
+        String baseRole = user.getRole();
+
+        // 基本角色
+        String baseDeptName = "";
+        if (user.getDeptId() != null) {
+            Department dept = deptMapper.selectById(user.getDeptId());
+            baseDeptName = dept != null ? dept.getName() : "";
+        }
+        String baseLabel = roleLabel(baseRole);
+        contexts.add(new RoleContext(baseRole, user.getDeptId(), baseDeptName, baseLabel));
+
+        // 顾层角色(ceo/director)兼任的第二层部门负责人
+        if ("ceo".equals(baseRole) || "director".equals(baseRole)) {
+            List<String> managedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(userId);
+            for (String managedDeptId : managedDeptIds) {
+                Department managedDept = deptMapper.selectById(managedDeptId);
+                if (managedDept != null && Integer.valueOf(1).equals(managedDept.getLevel())) {
+                    contexts.add(new RoleContext(
+                            "manager", managedDeptId, managedDept.getName(),
+                            managedDept.getName() + "负责人"));
+                }
+            }
+        }
+
+        return contexts;
+    }
+
+    private String roleLabel(String role) {
+        return switch (role) {
+            case "ceo" -> "总经理";
+            case "director" -> "副总经理";
+            case "manager" -> "负责人";
+            case "staff" -> "普通员工";
+            case "admin" -> "管理员";
+            default -> role;
+        };
+    }
+
+    @Override
     public boolean resetPassword(ResetPasswordRequest request) {
         User user = userMapper.selectByPhone(request.getPhone());
         if (user == null) {
@@ -77,12 +126,13 @@ public class AuthServiceImpl implements AuthService {
         }
         // 密码强度校验
         if (!PASSWORD_PATTERN.matcher(request.getNewPassword()).matches()) {
-            throw new BusinessException(ErrorCode.PASSWORD_INVALID);
+            throw new BusinessException(ErrorCode.PASSWORD_INVALID,
+                    "密码需包含大小写字母、数字和特殊字符，长度8-20位");
         }
 
         User update = new User();
         update.setId(user.getId());
-        update.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        update.setPasswordHash(request.getNewPassword());
         userMapper.update(update);
         return true;
     }
@@ -94,7 +144,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         // 验证旧密码
-        if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
+        if (!request.getOldPassword().equals(user.getPasswordHash())) {
             throw new BusinessException(ErrorCode.PASSWORD_INVALID, "旧密码不正确");
         }
         // 新密码强度校验
@@ -102,10 +152,10 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.PASSWORD_INVALID,
                     "密码需包含大小写字母、数字和特殊字符，长度8-20位");
         }
-        User update = new User();
-        update.setId(userId);
-        update.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        userMapper.update(update);
+        User updateUser = new User();
+        updateUser.setId(userId);
+        updateUser.setPasswordHash(request.getNewPassword());
+        userMapper.update(updateUser);
         return true;
     }
 

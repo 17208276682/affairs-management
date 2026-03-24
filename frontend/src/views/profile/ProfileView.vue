@@ -10,8 +10,8 @@
         <el-card class="profile-card">
           <div class="avatar-section">
             <el-avatar :size="80">{{ userStore.userInfo?.name?.charAt(0) }}</el-avatar>
-            <h3 class="user-name">{{ userStore.userInfo?.name }}</h3>
-            <el-tag :type="userStore.userInfo?.role === 'admin' ? 'danger' : userStore.userInfo?.role === 'manager' ? 'warning' : 'info'" effect="light">
+            <h3 class="user-name">{{ displayProfileName }}</h3>
+            <el-tag v-if="!isAdminUser" :type="userStore.userInfo?.role === 'ceo' ? 'danger' : userStore.userInfo?.role === 'director' ? 'danger' : userStore.userInfo?.role === 'manager' ? 'warning' : 'info'" effect="light">
               {{ userStore.displayRole }}
             </el-tag>
           </div>
@@ -20,22 +20,22 @@
             <div class="info-item">
               <el-icon><OfficeBuilding /></el-icon>
               <span class="info-label">部门</span>
-              <span class="info-value">{{ userStore.userInfo?.deptName }}</span>
+              <span class="info-value">{{ isAdminUser ? '-' : userStore.userInfo?.deptName }}</span>
             </div>
             <div class="info-item">
               <el-icon><Briefcase /></el-icon>
               <span class="info-label">职位</span>
-              <span class="info-value">{{ userStore.userInfo?.position }}</span>
+              <span class="info-value">{{ isAdminUser ? '-' : userStore.userInfo?.position }}</span>
             </div>
             <div class="info-item">
               <el-icon><Phone /></el-icon>
               <span class="info-label">手机</span>
-              <span class="info-value">{{ userStore.userInfo?.phone }}</span>
+              <span class="info-value">{{ isAdminUser ? '-' : userStore.userInfo?.phone }}</span>
             </div>
             <div class="info-item">
               <el-icon><Message /></el-icon>
               <span class="info-label">邮箱</span>
-              <span class="info-value">{{ userStore.userInfo?.email }}</span>
+              <span class="info-value">{{ isAdminUser ? '-' : userStore.userInfo?.email }}</span>
             </div>
           </div>
         </el-card>
@@ -47,13 +47,13 @@
           <el-tabs v-model="activeTab">
             <el-tab-pane label="基本信息" name="info">
               <el-descriptions :column="2" border class="readonly-info">
-                <el-descriptions-item label="账号">{{ userStore.userInfo?.username || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="姓名">{{ userStore.userInfo?.name || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="角色">{{ userStore.displayRole }}</el-descriptions-item>
-                <el-descriptions-item label="部门">{{ userStore.userInfo?.deptName || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="职位">{{ userStore.userInfo?.position || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="手机号">{{ userStore.userInfo?.phone || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="邮箱">{{ userStore.userInfo?.email || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="账号">{{ isAdminUser ? '-' : (userStore.userInfo?.username || '-') }}</el-descriptions-item>
+                <el-descriptions-item label="姓名">{{ displayProfileName }}</el-descriptions-item>
+                <el-descriptions-item label="角色">{{ isAdminUser ? '-' : userStore.displayRole }}</el-descriptions-item>
+                <el-descriptions-item label="部门">{{ isAdminUser ? '-' : (userStore.userInfo?.deptName || '-') }}</el-descriptions-item>
+                <el-descriptions-item label="职位">{{ isAdminUser ? '-' : (userStore.userInfo?.position || '-') }}</el-descriptions-item>
+                <el-descriptions-item label="手机号">{{ isAdminUser ? '-' : (userStore.userInfo?.phone || '-') }}</el-descriptions-item>
+                <el-descriptions-item label="邮箱">{{ isAdminUser ? '-' : (userStore.userInfo?.email || '-') }}</el-descriptions-item>
                 <el-descriptions-item label="状态">{{ userStore.userInfo?.status === 1 ? '在职' : '离职' }}</el-descriptions-item>
               </el-descriptions>
             </el-tab-pane>
@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores'
 import { changePasswordApi } from '@/api/user'
@@ -90,6 +90,8 @@ import { changePasswordApi } from '@/api/user'
 const userStore = useUserStore()
 const activeTab = ref('info')
 const changingPwd = ref(false)
+const isAdminUser = computed(() => userStore.userInfo?.role === 'admin')
+const displayProfileName = computed(() => isAdminUser.value ? '用户' : (userStore.userInfo?.name || '-'))
 
 const pwdForm = ref({
   oldPassword: '',

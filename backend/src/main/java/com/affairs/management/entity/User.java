@@ -26,7 +26,7 @@ public class User {
     private String deptId;
     /** 岗位 */
     private String position;
-    /** 角色：admin/director/manager/staff */
+    /** 角色：ceo/director/manager/staff */
     private String role;
     /** 状态：0=离职 1=在职 */
     private Integer status;

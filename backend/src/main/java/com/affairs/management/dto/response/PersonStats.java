@@ -17,4 +17,12 @@ public class PersonStats {
     private double completionRate;
     private double avgResponseHours;
     private double avgCompletionHours;
+
+    // 堆积图新增字段
+    private int onTimeCompleted;
+    private int overdueCompleted;
+    private int failedReview;
+    private int todoTasks;
+    private int overdueUnfinished;
+    private int cancelledTasks;
 }

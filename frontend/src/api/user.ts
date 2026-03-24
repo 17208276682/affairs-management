@@ -2,7 +2,7 @@
 // 用户 / 认证 API
 // ============================================
 import { get, post, put } from './request'
-import type { LoginRequest, LoginResponse, User } from '@/types'
+import type { LoginRequest, LoginResponse, RoleContext, User } from '@/types'
 
 /** 登录 */
 export function loginApi(data: LoginRequest) {
@@ -12,6 +12,11 @@ export function loginApi(data: LoginRequest) {
 /** 获取当前用户信息 */
 export function getUserInfoApi() {
   return get<User>('/auth/userinfo')
+}
+
+/** 获取可切换角色上下文列表 */
+export function getRoleContextsApi() {
+  return get<RoleContext[]>('/auth/role-contexts')
 }
 
 /** 更新个人信息 */

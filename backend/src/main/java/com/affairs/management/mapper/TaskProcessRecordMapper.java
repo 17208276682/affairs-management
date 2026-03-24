@@ -19,5 +19,11 @@ public interface TaskProcessRecordMapper {
     List<TaskProcessRecord> selectRecent(@Param("limit") int limit,
                                           @Param("userIds") List<String> userIds);
 
+    /** 按任务关系查询最近动态（根据角色过滤） */
+    List<TaskProcessRecord> selectRecentByRelation(@Param("limit") int limit,
+                                                    @Param("userId") String userId,
+                                                    @Param("checkAssigner") boolean checkAssigner,
+                                                    @Param("checkExecutor") boolean checkExecutor);
+
     String selectMaxId();
 }

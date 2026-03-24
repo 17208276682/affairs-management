@@ -31,6 +31,9 @@ public interface DeptMapper {
     /** 获取最大部门ID的数字部分 */
     String selectMaxId();
 
+    /** 查询同级最大的排序值 */
+    Integer selectMaxSortByParentId(@Param("parentId") String parentId);
+
     /** 更新成员数量 */
     int updateMemberCount(@Param("id") String id, @Param("count") int count);
 

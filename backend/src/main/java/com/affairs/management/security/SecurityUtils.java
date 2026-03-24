@@ -60,6 +60,10 @@ public class SecurityUtils {
         return "admin".equals(getCurrentRole());
     }
 
+    public static boolean isCeo() {
+        return "ceo".equals(getCurrentRole());
+    }
+
     /**
      * 判断当前用户是否是总经办
      */

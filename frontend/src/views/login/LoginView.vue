@@ -7,6 +7,13 @@
             <span>中小企业</span>
             <span>事务管理数智化系统</span>
           </h1>
+          <div class="brand-keywords">
+            <span class="keyword-tag">事务列表</span>
+            <span class="keyword-tag">事务下达</span>
+            <span class="keyword-tag">事务代办</span>
+            <span class="keyword-tag">事务统计</span>
+            <span class="keyword-tag">组织管理</span>
+          </div>
         </div>
 
         <div class="brand-scene" aria-hidden="true">
@@ -43,15 +50,6 @@
 
       <section class="login-panel">
         <div class="login-card">
-          <div class="login-header">
-            <div class="brand-mark">
-              <el-icon :size="26" color="#4D7CFE"><Monitor /></el-icon>
-            </div>
-            <div>
-              <h2 class="login-title">欢迎登录</h2>
-              <p class="login-subtitle">Task Management System</p>
-            </div>
-          </div>
 
           <el-form
             v-if="!forgotVisible"
@@ -61,10 +59,19 @@
             size="large"
             @submit.prevent="handleLogin"
           >
+            <div class="login-header">
+              <div class="brand-mark">
+                <el-icon :size="26" color="#4D7CFE"><Monitor /></el-icon>
+              </div>
+              <div>
+                <h2 class="login-title">欢迎登录</h2>
+                <p class="login-subtitle">Task Management System</p>
+              </div>
+            </div>
             <el-form-item prop="username">
               <el-input
                 v-model="form.username"
-                placeholder="请输入用户名或手机号"
+                placeholder="请输入手机号"
                 :prefix-icon="User"
                 clearable
               />
@@ -111,31 +118,16 @@
             </el-form-item>
           </el-form>
 
-          <div v-if="!forgotVisible" class="demo-accounts">
-            <div class="demo-title">
-              <span>演示账号</span>
-              <small>点击自动填充</small>
-            </div>
-
-            <div class="account-list">
-              <div
-                v-for="account in demoAccounts"
-                :key="account.username"
-                class="account-item"
-                @click="fillAccount(account)"
-              >
-                <div class="account-meta">
-                  <el-tag :type="account.tagType" size="small" effect="light" round>
-                    {{ account.role }}
-                  </el-tag>
-                  <span class="account-name">{{ account.name }}</span>
-                </div>
-                <span class="account-username">{{ account.username }}</span>
+          <el-form v-else ref="forgotFormRef" :model="forgotForm" :rules="forgotRules" size="large" @submit.prevent="handleResetPassword">
+            <div class="login-header" style="margin-bottom: 20px;">
+              <div class="brand-mark">
+                <el-icon :size="26" color="#4D7CFE"><Lock /></el-icon>
+              </div>
+              <div>
+                <h2 class="login-title">密码修改</h2>
+                <p class="login-subtitle">Reset Password</p>
               </div>
             </div>
-          </div>
-
-          <el-form v-else ref="forgotFormRef" :model="forgotForm" :rules="forgotRules" size="large" @submit.prevent="handleResetPassword">
             <el-form-item prop="phone">
               <el-input v-model="forgotForm.phone" placeholder="请输入手机号" clearable />
             </el-form-item>
@@ -171,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -200,10 +192,6 @@ const form = reactive({
   captcha: '',
 })
 
-const demoAccounts = [
-  { username: 'zhaoyang', password: '123456', name: '赵阳', role: '管理员', tagType: 'primary' as const },
-]
-
 const forgotForm = reactive({
   phone: '',
   newPassword: '',
@@ -213,13 +201,57 @@ const forgotForm = reactive({
 
 const formRules: FormRules = {
   ...loginFormRules,
+  captcha: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (value && value.toUpperCase() !== captchaText.value.toUpperCase()) {
+          callback(new Error('验证码不正确'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
+const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,20}$/
+
 const forgotRules: FormRules = {
-  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }, { pattern: /^1[3-9]\d{9}$/, message: '请输入正确手机号', trigger: 'blur' }],
-  newPassword: [{ required: true, message: '请输入新密码', trigger: 'blur' }, { min: 4, message: '密码不少于4位', trigger: 'blur' }],
-  confirmPassword: [{ required: true, message: '请确认新密码', trigger: 'blur' }],
-  smsCode: [{ required: true, message: '请输入短信验证码', trigger: 'blur' }],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确手机号', trigger: 'blur' },
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (!value) { callback(new Error('请输入新密码')); return }
+        if (!strongPasswordPattern.test(value)) {
+          callback(new Error('密码需 8-20 位，含大小写字母、数字和特殊字符'))
+        } else { callback() }
+      },
+      trigger: 'blur',
+    },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (value && value !== forgotForm.newPassword) {
+          callback(new Error('两次输入密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  smsCode: [
+    { required: true, message: '请输入短信验证码', trigger: 'blur' },
+    { len: 6, message: '验证码为6位数字', trigger: 'blur' },
+  ],
 }
 
 function generateCaptcha() {
@@ -231,11 +263,6 @@ function refreshCaptcha() {
   form.captcha = ''
 }
 
-function fillAccount(account: typeof demoAccounts[0]) {
-  form.username = account.username
-  form.password = account.password
-}
-
 function sendFakeSms() {
   if (!/^1[3-9]\d{9}$/.test(forgotForm.phone)) {
     ElMessage.warning('请先输入正确手机号')
@@ -245,6 +272,33 @@ function sendFakeSms() {
   smsHint.value = `模拟短信验证码：${fakeSmsCode.value}`
   ElMessage.success('短信验证码已发送（模拟）')
 }
+
+// 记住密码功能
+const REMEMBER_KEY = 'tm_remember'
+
+function loadRemembered() {
+  try {
+    const saved = localStorage.getItem(REMEMBER_KEY)
+    if (saved) {
+      const { username, password } = JSON.parse(saved)
+      form.username = username || ''
+      form.password = password || ''
+      rememberMe.value = true
+    }
+  } catch { /* ignore */ }
+}
+
+function saveRemembered() {
+  if (rememberMe.value) {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: form.username, password: form.password }))
+  } else {
+    localStorage.removeItem(REMEMBER_KEY)
+  }
+}
+
+onMounted(() => {
+  loadRemembered()
+})
 
 function closeForgot() {
   forgotVisible.value = false
@@ -260,16 +314,25 @@ async function handleLogin() {
   if (!formRef.value) return
   await formRef.value.validate()
 
+  // 验证码校验
+  if (form.captcha.toUpperCase() !== captchaText.value.toUpperCase()) {
+    ElMessage.warning('验证码不正确')
+    refreshCaptcha()
+    return
+  }
+
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
+    saveRemembered()
     ElMessage.success(`欢迎回来，${userStore.userInfo?.name}`)
-    // 管理员默认跳转部门管理，其他角色默认跳转事务总览
-    const defaultPath = userStore.userInfo?.role === 'admin' ? '/org/dept' : '/dashboard'
+    // 管理员/CEO默认跳转部门管理，其他角色默认跳转事务总览
+    const role = userStore.userInfo?.role
+    const defaultPath = (role === 'admin' || role === 'ceo') ? '/org/dept' : '/dashboard'
     const redirect = (route.query.redirect as string) || defaultPath
     router.push(redirect)
   } catch (e: any) {
-    // Error already shown by interceptor
+    refreshCaptcha()
   } finally {
     loading.value = false
   }
@@ -347,6 +410,24 @@ async function handleResetPassword() {
     span {
       display: block;
     }
+  }
+}
+
+.brand-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+
+  .keyword-tag {
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #3768e5;
+    background: rgba(77, 124, 254, 0.10);
+    border: 1px solid rgba(77, 124, 254, 0.18);
+    letter-spacing: 1px;
   }
 }
 
@@ -638,67 +719,6 @@ async function handleResetPassword() {
   margin-bottom: 10px;
   font-size: 12px;
   color: #58708e;
-}
-
-.demo-accounts {
-  margin-top: 8px;
-
-  .demo-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 14px;
-    color: #5f6f86;
-    margin-bottom: 12px;
-
-    small {
-      color: #9cabc0;
-      font-size: 12px;
-    }
-  }
-
-  .account-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .account-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #fbfdff 0%, #f6f9ff 100%);
-    border: 1px solid #edf1f7;
-    cursor: pointer;
-    transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
-
-    &:hover {
-      transform: translateY(-2px);
-      border-color: #d8e3fb;
-      box-shadow: 0 10px 24px rgba(150, 173, 209, 0.14);
-    }
-
-    .account-meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .account-name {
-      font-size: $font-size-sm;
-      color: #24324a;
-      font-weight: 500;
-    }
-
-    .account-username {
-      font-size: $font-size-xs;
-      color: #7d8ca3;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-  }
 }
 
 .login-footer {

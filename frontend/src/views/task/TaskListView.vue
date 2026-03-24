@@ -23,9 +23,12 @@
           class="filter-select"
           @change="handleSearch"
         >
-          <el-option label="已完成" value="finished" />
-          <el-option label="未完成" value="unfinished" />
+          <el-option label="待处理" value="pending" />
+          <el-option label="待审核" value="submitted" />
           <el-option label="已逾期" value="overdue" />
+          <el-option label="已完成" value="completed" />
+          <el-option label="不通过" value="rejected" />
+          <el-option label="已作废" value="cancelled" />
         </el-select>
         <el-select
           v-model="levelFilter"
@@ -51,57 +54,62 @@
     <div class="split-layout">
       <!-- 左侧：表格 -->
       <el-card v-loading="taskStore.listLoading" class="list-card">
-        <el-table
-          :data="sortedTaskList"
-          stripe
-          style="width: 100%"
-          highlight-current-row
-          @row-click="handleRowClick"
-          @sort-change="handleSortChange"
-        >
-          <el-table-column label="事务级别" width="104" align="center" prop="level" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
-            <template #default="{ row }">
-              <div class="level-badge-sm" :style="{ background: TASK_LEVEL_MAP[row.level as TaskLevel]?.color }">
-                {{ row.level }}
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="事务描述" min-width="160" show-overflow-tooltip>
-            <template #default="{ row }">
-              {{ row.description?.substring(0, 20) || row.title?.substring(0, 20) || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="下达人" width="80">
-            <template #default="{ row }">{{ row.assignerName }}</template>
-          </el-table-column>
-          <el-table-column label="执行人" width="80">
-            <template #default="{ row }">{{ row.executorName }}</template>
-          </el-table-column>
-          <el-table-column label="状态" width="90" align="center" prop="status" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
-            <template #default="{ row }">
-              <el-tag
-                :color="getDisplayStatus(row.status).bgColor"
-                :style="{ color: getDisplayStatus(row.status).color, border: 'none' }"
-                size="small"
-                round
-              >
-                {{ getDisplayStatus(row.status).label }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="截止时间" width="150" prop="completionDeadline" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
-            <template #default="{ row }">
-              <span :class="{ 'text-danger': getTimeRemaining(row.completionDeadline).isOverdue }">
-                {{ formatDateTime(row.completionDeadline) }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="70" align="center">
-            <template #default="{ row }">
-              <el-button link type="primary" @click.stop="showDetail(row)">详情</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="table-scroll-area">
+          <el-table
+            :data="sortedTaskList"
+            stripe
+            style="width: 100%"
+            highlight-current-row
+            @row-click="handleRowClick"
+            @sort-change="handleSortChange"
+          >
+            <el-table-column label="事务级别" width="170" align="center" prop="level" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
+              <template #default="{ row }">
+                <div class="level-cell">
+                  <span class="level-text">{{ TASK_LEVEL_MAP[row.level as TaskLevel]?.label }}</span>
+                  <div class="level-badge-sm" :style="{ background: TASK_LEVEL_MAP[row.level as TaskLevel]?.color }">
+                    {{ row.level }}
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="事务描述" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.description?.substring(0, 20) || row.title?.substring(0, 20) || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="下达人" width="80">
+              <template #default="{ row }">{{ row.assignerName }}</template>
+            </el-table-column>
+            <el-table-column label="执行人" width="80">
+              <template #default="{ row }">{{ row.executorName }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="90" align="center" prop="status" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
+              <template #default="{ row }">
+                <el-tag
+                  :color="getDisplayStatus(row.status).bgColor"
+                  :style="{ color: getDisplayStatus(row.status).color, border: 'none' }"
+                  size="small"
+                  round
+                >
+                  {{ getDisplayStatus(row.status).label }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="截止时间" width="150" prop="completionDeadline" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
+              <template #default="{ row }">
+                <span :class="{ 'text-danger': getTimeRemaining(row.completionDeadline).isOverdue }">
+                  {{ formatDateTime(row.completionDeadline) }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70" align="center">
+              <template #default="{ row }">
+                <el-button link type="primary" @click.stop="showDetail(row)">详情</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
 
         <div class="pagination-wrapper">
           <el-pagination
@@ -143,7 +151,7 @@
                   <el-radio-button v-for="opt in urgencyOptions" :key="opt.value" :value="opt.value" :class="['urgency-btn', `urgency-${opt.value}`]">{{ opt.label }}</el-radio-button>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item label="完成时间" prop="completionDeadline">
+              <el-form-item label="截止时间" prop="completionDeadline">
                 <div class="deadline-input">
                   <div class="deadline-presets">
                     <el-button size="small" @click="setCreatePresetDeadline(30, 'minute')">半个小时</el-button>
@@ -155,7 +163,7 @@
                     v-model="createForm.completionDeadline"
                     type="datetime"
                     value-format="YYYY-MM-DDTHH:mm:ss"
-                    placeholder="请选择完成时间"
+                    placeholder="请选择截止时间"
                     style="width: 100%"
                     :shortcuts="deadlineShortcuts"
                   />
@@ -167,7 +175,7 @@
                     <el-avatar :size="28">{{ createSelectedExecutor.name.charAt(0) }}</el-avatar>
                     <div>
                       <div class="executor-name">{{ createSelectedExecutor.name }}</div>
-                      <div class="executor-dept">{{ createSelectedExecutor.deptName }}</div>
+                      <div class="executor-dept">{{ getMemberDeptText(createSelectedExecutor) }}</div>
                     </div>
                     <el-icon class="change-icon"><Edit /></el-icon>
                   </div>
@@ -177,9 +185,19 @@
                 </div>
               </el-form-item>
               <el-form-item label="附件">
-                <el-upload v-model:file-list="createFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
+                <el-upload v-model:file-list="createFileList" action="#" :auto-upload="false" :limit="10" multiple :on-preview="handleUploadPreview">
                   <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
-                  <template #tip><div class="el-upload__tip">最多5个文件</div></template>
+                  <template #file="{ file }">
+                    <div class="upload-file-row">
+                      <span class="upload-file-name">{{ file.name }}</span>
+                      <div class="upload-file-actions">
+                        <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                        <el-button link type="danger" size="small" @click="removeCreateUploadFile(file)">取消</el-button>
+                      </div>
+                    </div>
+                  </template>
+                  <template #tip><div class="el-upload__tip">最多10个文件</div></template>
                 </el-upload>
               </el-form-item>
             </el-form>
@@ -225,22 +243,50 @@
               <p class="panel-desc">{{ selectedTask.description || selectedTask.title }}</p>
             </div>
 
-            <!-- 1.2 附件转交 -->
+            <!-- 1.2 附件 -->
             <div class="panel-section">
-              <div class="panel-label">附件转交</div>
+              <div class="panel-label">附件</div>
               <template v-if="selectedTask.attachments && selectedTask.attachments.length">
-                <div v-for="file in selectedTask.attachments" :key="file.id" class="panel-file">
-                  <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
-                  <span class="file-name">{{ file.name }}</span>
-                  <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
-                  <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
+                <div class="attachment-scroll">
+                  <div v-for="file in selectedTask.attachments" :key="file.id" class="panel-file">
+                    <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
+                    <span class="file-name">{{ file.name }}</span>
+                    <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                    <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
+                  </div>
                 </div>
               </template>
-              <p v-else class="empty-hint">{{ isMyTodo ? '暂未收到上级附件' : '暂无附件给下级人员' }}</p>
+              <p v-else class="empty-hint">暂无附件</p>
             </div>
 
-            <!-- 1.5 任务信息（非简洁模式下显示） -->
-            <div v-if="!showSimpleHeader" class="panel-section">
+            <!-- 1.3 流程动态（所有角色统一显示） -->
+            <div class="panel-section">
+              <div class="panel-label">流程动态</div>
+              <template v-if="flowNodes.length">
+                <div class="flow-timeline">
+                  <div
+                    v-for="(node, idx) in flowNodes"
+                    :key="idx"
+                    class="flow-node"
+                  >
+                    <div class="flow-dot" :style="{ background: node.color }" />
+                    <div v-if="idx < flowNodes.length - 1" class="flow-line" />
+                    <div class="flow-content">
+                      <div class="flow-text">
+                        <span class="flow-name">{{ node.operator }}</span>
+                        <span class="flow-action">{{ node.action }}</span>
+                        <span v-if="node.target" class="flow-name">{{ node.target }}</span>
+                      </div>
+                      <div class="flow-time">{{ node.time }}</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <p v-else class="empty-hint">暂无流程动态</p>
+            </div>
+
+            <!-- 1.5 任务信息（我的代办中隐藏） -->
+            <div v-if="!showSimpleHeader && !isMyTodo" class="panel-section">
               <div class="panel-label">任务信息</div>
               <div class="info-grid">
                 <div class="info-item">
@@ -269,7 +315,28 @@
               <!-- 已提交/已终结：保留已提交内容只读 + 状态横幅 -->
               <template v-if="isReceiverDone">
                 <!-- 已提交的内容（只读） -->
-                <div v-if="directSubmissions.length" class="panel-section">
+                <!-- 已转交：显示下级提交的实际工作内容 -->
+                <div v-if="hasDelegated && effectiveChildSubmissions.length" class="panel-section">
+                  <div class="panel-label">下级提交内容</div>
+                  <div v-for="sub in effectiveChildSubmissions" :key="sub.id" class="submission-block">
+                    <div class="submission-author">
+                      <el-avatar :size="24">{{ sub.operatorName.charAt(0) }}</el-avatar>
+                      <span>{{ sub.operatorName }}</span>
+                      <span class="submission-time">{{ formatDateTime(sub.createdAt) }}</span>
+                    </div>
+                    <p class="submission-desc">{{ sub.content }}</p>
+                    <div v-if="sub.attachments.length" class="submission-files">
+                      <div v-for="file in sub.attachments" :key="file.id" class="panel-file">
+                        <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
+                        <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 未转交：显示自己提交的内容 -->
+                <div v-else-if="directSubmissions.length" class="panel-section">
                   <div class="panel-label">已提交内容</div>
                   <div v-for="sub in directSubmissions" :key="sub.id" class="submission-block">
                     <div class="submission-author">
@@ -290,13 +357,17 @@
                 </div>
                 <div class="panel-section">
                   <div class="action-result" :class="taskResultClass">
-                    <el-icon :size="18"><CircleCheck v-if="selectedTask.status !== 'rejected'" /><CircleClose v-else /></el-icon>
+                    <el-icon :size="18"><CircleCheck v-if="!['rejected', 'cancelled'].includes(selectedTask.status)" /><CircleClose v-else /></el-icon>
                     {{ taskResultText }}
                   </div>
                 </div>
                 <div v-if="selectedTask.status === 'rejected' && rejectReasonText" class="panel-section">
                   <div class="panel-label">不通过理由</div>
                   <p class="reject-reason-text">{{ rejectReasonText }}</p>
+                </div>
+                <div v-if="selectedTask.status === 'cancelled' && cancelReasonText" class="panel-section">
+                  <div class="panel-label">作废原因</div>
+                  <p class="reject-reason-text">{{ cancelReasonText }}</p>
                 </div>
               </template>
 
@@ -315,30 +386,26 @@
                 <!-- 下级提交内容 -->
                 <div class="panel-section">
                   <div class="panel-label">下级提交内容</div>
-                  <div v-for="sub in allSubmissions.filter(s => selectedTask.childTaskIds.includes(s.taskId))" :key="sub.id" class="submission-block">
+                  <div v-for="sub in effectiveChildSubmissions" :key="sub.id" class="submission-block">
                     <div class="submission-author">
                       <el-avatar :size="24">{{ sub.operatorName.charAt(0) }}</el-avatar>
                       <span>{{ sub.operatorName }}</span>
                       <span class="submission-time">{{ formatDateTime(sub.createdAt) }}</span>
                     </div>
                     <p class="submission-desc">{{ sub.content }}</p>
+                    <div v-if="sub.attachments.length" class="submission-files">
+                      <div v-for="file in sub.attachments" :key="file.id" class="panel-file">
+                        <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
+                        <span class="file-name">{{ file.name }}</span>
+                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
+                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <!-- 提交表单 -->
+                <!-- 提交按钮 -->
                 <div class="panel-section">
-                  <div class="panel-label">提交给上级</div>
-                  <el-form label-position="top" class="inline-submit-form">
-                    <el-form-item label="附件上传">
-                      <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
-                        <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
-                        <template #tip><div class="el-upload__tip">最多5个文件</div></template>
-                      </el-upload>
-                    </el-form-item>
-                    <el-form-item label="事务反馈">
-                      <el-input v-model="submitContent" type="textarea" :rows="2" placeholder="请输入事务反馈" />
-                    </el-form-item>
-                  </el-form>
-                  <el-button type="primary" style="width: 100%; margin-top: 4px" :disabled="!submitContent.trim()" :loading="submittingInline" @click="handleInlineSubmit">
+                  <el-button type="primary" style="width: 100%" :loading="submittingInline" @click="handleDelegatedSubmit">
                     <el-icon><Upload /></el-icon>提交给上级
                   </el-button>
                 </div>
@@ -346,13 +413,28 @@
 
               <!-- 未转交：可直接提交 或 转交给下级 -->
               <template v-else>
-                <!-- 提交表单 -->
                 <div class="panel-section">
-                  <div class="panel-label">提交内容</div>
+                  <div class="action-tab-bar">
+                    <span :class="['action-tab', { active: managerActionMode === 'submit' }]" @click="managerActionMode = 'submit'">提交内容</span>
+                    <span :class="['action-tab', { active: managerActionMode === 'delegate' }]" @click="managerActionMode = 'delegate'">转交任务</span>
+                  </div>
+                </div>
+                <!-- 提交表单 -->
+                <div v-if="managerActionMode === 'submit'" class="panel-section">
                   <el-form label-position="top" class="inline-submit-form">
-                    <el-form-item label="附件上传">
+                    <el-form-item label="附件">
                       <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
                         <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
+                        <template #file="{ file }">
+                          <div class="upload-file-row">
+                            <span class="upload-file-name">{{ file.name }}</span>
+                            <div class="upload-file-actions">
+                              <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                              <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                              <el-button link type="danger" size="small" @click="removeSubmitUploadFile(file)">取消</el-button>
+                            </div>
+                          </div>
+                        </template>
                         <template #tip><div class="el-upload__tip">最多5个文件</div></template>
                       </el-upload>
                     </el-form-item>
@@ -365,8 +447,7 @@
                   </el-button>
                 </div>
                 <!-- 转交表单 -->
-                <div class="panel-section">
-                  <div class="panel-label">转交任务</div>
+                <div v-if="managerActionMode === 'delegate'" class="panel-section">
                   <el-form label-position="top" class="inline-delegate-form">
                     <el-form-item label="执行人">
                       <div class="executor-selector">
@@ -391,90 +472,30 @@
               </template>
             </template>
 
-            <!-- —— 经理事务列表专属布局 —— -->
-            <template v-else-if="isManagerAssigned">
-              <!-- 附件接受 -->
-              <div class="panel-section">
-                <div class="panel-label">附件接受</div>
-                <template v-if="submissionAttachments.length">
-                  <div v-for="item in submissionAttachments" :key="item.sub.id" class="submission-block">
-                    <div class="submission-author">
-                      <el-avatar :size="24">{{ item.sub.operatorName.charAt(0) }}</el-avatar>
-                      <span>{{ item.sub.operatorName }} 提交</span>
-                      <span class="submission-time">{{ formatDateTime(item.sub.createdAt) }}</span>
-                    </div>
-                    <div class="submission-files">
-                      <div v-for="file in item.files" :key="file.id" class="panel-file">
-                        <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
-                        <span class="file-name">{{ file.name }}</span>
-                        <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
-                        <el-button link type="primary" size="small" @click="openDownload(file.id)">下载</el-button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-                <p v-else class="empty-hint">暂无下级人员提交附件</p>
-              </div>
-
-              <!-- 事务反馈 -->
-              <div class="panel-section">
-                <div class="panel-label">事务反馈</div>
-                <template v-if="allSubmissions.length">
-                  <div v-for="sub in allSubmissions" :key="sub.id" class="submission-block">
-                    <div class="submission-author">
-                      <el-avatar :size="24">{{ sub.operatorName.charAt(0) }}</el-avatar>
-                      <span>{{ sub.operatorName }}</span>
-                      <span class="submission-time">{{ formatDateTime(sub.createdAt) }}</span>
-                    </div>
-                    <p class="submission-desc">{{ sub.content }}</p>
-                  </div>
-                </template>
-                <p v-else class="empty-hint">暂无下级人员反馈事务</p>
-              </div>
-
-              <!-- 执行状态 -->
-              <div class="panel-section">
-                <div v-if="selectedTask.status === 'submitted'" class="action-result result-approve">
-                  <el-icon :size="18"><CircleCheck /></el-icon>
-                  待审核
-                </div>
-                <div v-else-if="selectedTask.status === 'completed' || selectedTask.status === 'approved'" class="action-result result-approve">
-                  <el-icon :size="18"><CircleCheck /></el-icon>
-                  已完成
-                </div>
-                <div v-else-if="selectedTask.status === 'rejected'" class="action-result result-reject">
-                  <el-icon :size="18"><CircleClose /></el-icon>
-                  不通过
-                </div>
-                <div v-else-if="selectedTask.status === 'cancelled'" class="action-result result-cancel">
-                  <el-icon :size="18"><CircleClose /></el-icon>
-                  已作废
-                </div>
-                <div v-else class="action-result result-pending">
-                  <el-icon :size="18"><Clock /></el-icon>
-                  等待下级提交
-                </div>
-              </div>
-              <div v-if="selectedTask.status === 'rejected' && rejectReasonText" class="panel-section">
-                <div class="panel-label">不通过理由</div>
-                <p class="reject-reason-text">{{ rejectReasonText }}</p>
-              </div>
-            </template>
-
             <!-- —— 员工代办专属布局 —— -->
             <template v-else-if="isStaffReceived">
-              <!-- 区域2：附件上传 + 事务反馈 + 提交 -->
+              <!-- 区域2：事务反馈 + 附件 + 提交 -->
               <div v-if="!isReceiverDone" class="panel-section">
                 <div class="panel-label">提交内容</div>
                 <el-form label-position="top" class="inline-submit-form">
-                  <el-form-item label="附件上传">
-                    <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="5" multiple :on-preview="handleUploadPreview">
-                      <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
-                      <template #tip><div class="el-upload__tip">最多5个文件</div></template>
-                    </el-upload>
-                  </el-form-item>
                   <el-form-item label="事务反馈">
                     <el-input v-model="submitContent" type="textarea" :rows="2" placeholder="请输入事务反馈" />
+                  </el-form-item>
+                  <el-form-item label="附件">
+                    <el-upload v-model:file-list="submitFileList" action="#" :auto-upload="false" :limit="10" multiple :on-preview="handleUploadPreview">
+                      <el-button type="primary" plain size="small"><el-icon><UploadFilled /></el-icon>选择文件</el-button>
+                      <template #file="{ file }">
+                        <div class="upload-file-row">
+                          <span class="upload-file-name">{{ file.name }}</span>
+                          <div class="upload-file-actions">
+                            <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                            <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                            <el-button link type="danger" size="small" @click="removeSubmitUploadFile(file)">取消</el-button>
+                          </div>
+                        </div>
+                      </template>
+                      <template #tip><div class="el-upload__tip">最多10个文件</div></template>
+                    </el-upload>
                   </el-form-item>
                 </el-form>
                 <el-button type="primary" style="width: 100%; margin-top: 4px" :disabled="!submitContent.trim()" :loading="submittingInline" @click="handleInlineSubmit">
@@ -513,46 +534,28 @@
                   <div class="panel-label">不通过理由</div>
                   <p class="reject-reason-text">{{ rejectReasonText }}</p>
                 </div>
+                <div v-if="selectedTask.status === 'cancelled' && cancelReasonText" class="panel-section">
+                  <div class="panel-label">作废原因</div>
+                  <p class="reject-reason-text">{{ cancelReasonText }}</p>
+                </div>
               </template>
             </template>
 
             <!-- —— 其他角色的通用布局 —— -->
             <template v-else>
-              <!-- 2. 流程动态 -->
+              <!-- 3. 事务反馈（包含所有提交记录） -->
               <div class="panel-section">
-                <div class="panel-label">流程动态</div>
-                <div class="flow-timeline">
-                  <div
-                    v-for="(node, idx) in flowNodes"
-                    :key="idx"
-                    class="flow-node"
-                  >
-                    <div class="flow-dot" :style="{ background: node.color }" />
-                    <div v-if="idx < flowNodes.length - 1" class="flow-line" />
-                    <div class="flow-content">
-                      <div class="flow-text">
-                        <span class="flow-name">{{ node.operator }}</span>
-                        <span class="flow-action">{{ node.action }}</span>
-                        <span v-if="node.target" class="flow-name">{{ node.target }}</span>
-                      </div>
-                      <div class="flow-time">{{ node.time }}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 3. 附件接受（直接提交的附件，不含子任务） -->
-              <div class="panel-section">
-                <div class="panel-label">附件接受</div>
-                <template v-if="directSubmissionAttachments.length">
-                  <div v-for="item in directSubmissionAttachments" :key="item.sub.id" class="submission-block">
+                <div class="panel-label">事务反馈</div>
+                <template v-if="effectiveAllSubmissions.length">
+                  <div v-for="sub in effectiveAllSubmissions" :key="sub.id" class="submission-block">
                     <div class="submission-author">
-                      <el-avatar :size="24">{{ item.sub.operatorName.charAt(0) }}</el-avatar>
-                      <span>{{ item.sub.operatorName }} 提交</span>
-                      <span class="submission-time">{{ formatDateTime(item.sub.createdAt) }}</span>
+                      <el-avatar :size="24">{{ sub.operatorName.charAt(0) }}</el-avatar>
+                      <span>{{ sub.operatorName }}</span>
+                      <span class="submission-time">{{ formatDateTime(sub.createdAt) }}</span>
                     </div>
-                    <div class="submission-files">
-                      <div v-for="file in item.files" :key="file.id" class="panel-file">
+                    <p class="submission-desc">{{ sub.content }}</p>
+                    <div v-if="sub.attachments.length" class="submission-files">
+                      <div v-for="file in sub.attachments" :key="file.id" class="panel-file">
                         <el-icon :size="16" color="#4F6EF7"><Document /></el-icon>
                         <span class="file-name">{{ file.name }}</span>
                         <el-button link type="primary" size="small" @click="openPreview(file.id, file.name, file.type)">预览</el-button>
@@ -561,33 +564,39 @@
                     </div>
                   </div>
                 </template>
-                <p v-else class="empty-hint">暂无下级人员提交附件</p>
-              </div>
-
-              <!-- 4. 事务反馈（直接提交的说明，不含子任务） -->
-              <div class="panel-section">
-                <div class="panel-label">事务反馈</div>
-                <template v-if="directSubmissions.length">
-                  <div v-for="sub in directSubmissions" :key="sub.id" class="submission-block">
-                    <div class="submission-author">
-                      <el-avatar :size="24">{{ sub.operatorName.charAt(0) }}</el-avatar>
-                      <span>{{ sub.operatorName }}</span>
-                      <span class="submission-time">{{ formatDateTime(sub.createdAt) }}</span>
-                    </div>
-                    <p class="submission-desc">{{ sub.content }}</p>
-                  </div>
-                </template>
                 <p v-else class="empty-hint">暂无下级人员反馈事务</p>
               </div>
+
+              <!-- 状态横幅（已完成/不通过/已作废） -->
+              <div v-if="isTaskResolved" class="panel-section">
+                <div class="action-result" :class="taskResultClass">
+                  <el-icon :size="18"><CircleCheck v-if="!['rejected', 'cancelled'].includes(selectedTask.status)" /><CircleClose v-else /></el-icon>
+                  {{ taskResultText }}
+                </div>
+              </div>
+              <!-- 不通过理由 -->
+              <div v-if="selectedTask.status === 'rejected' && rejectReasonText" class="panel-section">
+                <div class="panel-label">不通过理由</div>
+                <p class="reject-reason-text">{{ rejectReasonText }}</p>
+              </div>
+              <!-- 作废原因 -->
+              <div v-if="selectedTask.status === 'cancelled' && cancelReasonText" class="panel-section">
+                <div class="panel-label">作废原因</div>
+                <p class="reject-reason-text">{{ cancelReasonText }}</p>
+              </div>
+
             </template>
 
             <!-- 5. 操作按钮（代办审批角色） -->
             <div v-if="canReviewTodoTask" class="panel-section panel-actions">
-              <template v-if="isTaskResolved">
+              <template v-if="isTaskResolved && !isManagerReceived && !isStaffReceived">
                 <div class="action-result" :class="selectedTask.status === 'rejected' ? 'result-reject' : selectedTask.status === 'cancelled' ? 'result-cancel' : 'result-approve'">
                   <el-icon :size="18"><CircleCheck v-if="!['rejected', 'cancelled'].includes(selectedTask.status)" /><CircleClose v-else /></el-icon>
                   {{ selectedTask.status === 'rejected' ? '已标记为不通过' : selectedTask.status === 'cancelled' ? '已标记为作废' : '已标记为完成' }}
                 </div>
+              </template>
+              <template v-else-if="isTaskResolved">
+                <!-- 已由经理/员工代办区显示状态，此处不重复 -->
               </template>
               <template v-else-if="selectedTask.status === 'submitted'">
                 <el-button type="success" style="flex: 1" :loading="approving" @click="handleApprove">
@@ -646,6 +655,16 @@
             <el-button type="primary" plain>
               <el-icon><UploadFilled /></el-icon>选择文件
             </el-button>
+            <template #file="{ file }">
+              <div class="upload-file-row">
+                <span class="upload-file-name">{{ file.name }}</span>
+                <div class="upload-file-actions">
+                  <el-button link type="primary" size="small" @click="handleUploadPreview(file)">预览</el-button>
+                  <el-button link type="primary" size="small" @click="handleUploadDownload(file)">下载</el-button>
+                  <el-button link type="danger" size="small" @click="removeSubmitUploadFile(file)">取消</el-button>
+                </div>
+              </div>
+            </template>
             <template #tip>
               <div class="el-upload__tip">最多上传5个文件</div>
             </template>
@@ -691,7 +710,7 @@
           <el-avatar :size="32">{{ member.name.charAt(0) }}</el-avatar>
           <div class="person-info">
             <div class="person-name">{{ member.name }}</div>
-            <div class="person-dept">{{ member.deptName }} · {{ member.position }}</div>
+            <div class="person-dept">{{ getMemberDeptText(member) }}</div>
           </div>
           <el-icon v-if="createForm.executorId === member.id" color="#4F6EF7"><CircleCheck /></el-icon>
         </div>
@@ -726,7 +745,6 @@
       :title="previewTitle"
       :mime-type="previewMimeType"
       @update:visible="handlePreviewVisibleChange"
-      @download="downloadCurrentPreview"
     />
   </div>
 </template>
@@ -757,9 +775,8 @@ const normalizeListType = (raw?: string) => {
   if (raw === 'received') return 'todo'
   if (raw === 'all') return 'scope'
   if (raw === 'scope' || raw === 'assigned' || raw === 'todo') return raw
-  if (userStore.userInfo?.role === 'staff') return 'todo'
-  if (userStore.userInfo?.role === 'director') return 'assigned'
-  return 'todo'
+  if (userStore.currentRole === 'staff') return 'todo'
+  return 'scope'
 }
 
 const currentType = ref<string>(normalizeListType(route.params.type as string | undefined))
@@ -784,6 +801,7 @@ const submittingInline = ref(false)
 const delegatingInline = ref(false)
 const showDelegatePicker = ref(false)
 const delegateSelectedExecutor = ref<User | null>(null)
+const managerActionMode = ref<'submit' | 'delegate'>('submit')
 
 // ---- 新建事务表单 ----
 const createFormRef = ref<FormInstance>()
@@ -816,6 +834,30 @@ const deadlineShortcuts = [
   { text: '一天', value: () => dayjs().add(1, 'day').toDate() },
   { text: '一周', value: () => dayjs().add(1, 'week').toDate() },
 ]
+
+const deptNameMap = computed<Record<string, string>>(() => {
+  return orgStore.deptList.reduce((acc, dept) => {
+    acc[dept.id] = dept.name
+    return acc
+  }, {} as Record<string, string>)
+})
+
+function getMemberDeptText(member: User) {
+  const names: string[] = []
+  if (member.deptName) {
+    names.push(member.deptName)
+  }
+  if (member.managedDeptIds?.length) {
+    for (const deptId of member.managedDeptIds) {
+      const deptName = deptNameMap.value[deptId]
+      if (deptName) {
+        names.push(deptName)
+      }
+    }
+  }
+  const uniqueNames = [...new Set(names)]
+  return uniqueNames.join(' / ')
+}
 
 function setCreatePresetDeadline(value: number, unit: 'minute' | 'hour' | 'day' | 'week') {
   createForm.value.completionDeadline = dayjs().add(value, unit).format('YYYY-MM-DDTHH:mm:ss')
@@ -860,8 +902,10 @@ const pageTitle = computed(() => {
 })
 
 const canCreateTask = computed(() => {
-  if (!userStore.isManager) return false
-  return isScopeMode.value || isMyAssigned.value
+  if (isMyTodo.value) return false
+  if (userStore.isAdmin) return false
+  if (userStore.currentRole === 'staff') return false
+  return true
 })
 
 /** 将内部状态映射为显示状态 */
@@ -892,27 +936,32 @@ const flowNodes = computed(() => {
   if (!selectedTask.value) return []
   const task = selectedTask.value!
   const records = taskStore.currentRecords
+  const parseFlowTarget = (content?: string) => {
+    if (!content) return ''
+    const match = content.match(/(?:分派给|转交给|提交给|下发给|给)\s*([^，。,：:\s]+)/)
+    return match ? match[1] : ''
+  }
   return records.map(r => {
     const actionInfo = PROCESS_ACTION_MAP[r.action] || { label: r.action, color: '#6B7280' }
     let action = actionInfo.label
     let target = ''
     if (r.action === 'create' || r.action === 'assign') {
-      action = '转交'
-      target = task.executorName
+      action = '下发'
+      target = parseFlowTarget(r.content) || task.executorName
     } else if (r.action === 'reassign') {
       action = '转交'
-      // 尝试从内容中提取目标人名
-      const nameMatch = r.content.match(/分派给(.+?)处理/)
-      target = nameMatch ? nameMatch[1] : '下级'
+      target = parseFlowTarget(r.content) || '下级'
     } else if (r.action === 'submit') {
       action = '提交'
-      // 子任务的提交记录：目标是下发人（即经理），而非当前任务的下达人
-      if (r.taskId !== task.id) {
-        // 从 reassign 记录中找到下发该子任务的人
-        const reassignRecord = records.find(rec => rec.action === 'reassign' && rec.taskId === task.id)
-        target = reassignRecord ? reassignRecord.operatorName : task.executorName
-      } else {
-        target = task.assignerName
+      // 优先从内容解析目标人
+      target = parseFlowTarget(r.content)
+      if (!target) {
+        // 查找分配给此操作人的转交/下发记录，其操作人即为提交目标
+        const assignRecord = records.find(rec =>
+          (rec.action === 'reassign' || rec.action === 'create') &&
+          rec.content?.includes(r.operatorName)
+        )
+        target = assignRecord ? assignRecord.operatorName : task.assignerName
       }
     } else if (r.action === 'accept') {
       action = '接收'
@@ -947,6 +996,45 @@ const allSubmissions = computed((): TaskProcessRecord[] => {
   return records.filter(r => r.action === 'submit')
 })
 
+/** 子任务的提交记录 */
+const childSubmissions = computed((): TaskProcessRecord[] => {
+  if (!selectedTask.value) return []
+  const records = taskStore.currentRecords
+  return records.filter(r => r.action === 'submit' && r.taskId !== selectedTask.value!.id)
+})
+
+/** 合并后的下级提交内容：显示直接下级的名字 + 实际工作者的内容/附件 */
+const effectiveChildSubmissions = computed((): TaskProcessRecord[] => {
+  if (!selectedTask.value) return []
+  const task = selectedTask.value
+  const records = taskStore.currentRecords
+  const childIds = task.childTaskIds || []
+
+  // 所有子任务的提交记录
+  const childSubs = records.filter(r =>
+    r.action === 'submit' && r.taskId !== task.id
+  )
+  if (!childSubs.length) return []
+
+  // 直接子任务的提交记录（获取直接下级名字）
+  const directChildSubmit = childSubs.find(r => childIds.includes(r.taskId))
+  const directName = directChildSubmit?.operatorName
+
+  // 含有实际工作内容的提交记录（非纯转发 "提交给 xxx"）
+  const realWorkSubs = childSubs.filter(r =>
+    r.attachments.length > 0 || (r.content && !/^提交给\s\S+$/.test(r.content))
+  )
+
+  if (realWorkSubs.length > 0 && directName) {
+    return realWorkSubs.map(sub => ({
+      ...sub,
+      operatorName: directName
+    }))
+  }
+
+  return directChildSubmit ? [directChildSubmit] : childSubs
+})
+
 /** 仅当前任务的直接提交记录（不含子任务） */
 const directSubmissions = computed((): TaskProcessRecord[] => {
   if (!selectedTask.value) return []
@@ -957,6 +1045,32 @@ const directSubmissions = computed((): TaskProcessRecord[] => {
 /** 提交记录中带附件的条目（用于独立展示附件区域） */
 const submissionAttachments = computed(() => {
   return allSubmissions.value
+    .filter(s => s.attachments.length > 0)
+    .map(s => ({ sub: s, files: s.attachments }))
+})
+
+/** 合并后的所有提交记录：过滤纯转发，显示直接下级名字 + 实际工作内容 */
+const effectiveAllSubmissions = computed((): TaskProcessRecord[] => {
+  if (!selectedTask.value) return []
+  const task = selectedTask.value
+  const subs = allSubmissions.value
+  if (!subs.length) return []
+
+  // 找到有实际工作内容的提交记录（非纯转发）
+  const realWorkSubs = subs.filter(r =>
+    r.attachments.length > 0 || (r.content && !/^提交给\s\S+$/.test(r.content))
+  )
+
+  if (realWorkSubs.length > 0) {
+    return realWorkSubs
+  }
+
+  return subs
+})
+
+/** 合并后的附件列表 */
+const effectiveSubmissionAttachments = computed(() => {
+  return effectiveAllSubmissions.value
     .filter(s => s.attachments.length > 0)
     .map(s => ({ sub: s, files: s.attachments }))
 })
@@ -1000,6 +1114,13 @@ const rejectReasonText = computed(() => {
   return content.replace(/^驳回原因[:：]\s*/, '')
 })
 
+/** 作废原因文本（从流程记录中提取） */
+const cancelReasonText = computed(() => {
+  const records = taskStore.currentRecords
+  const cancelRecord = [...records].reverse().find(r => r.action === 'cancel')
+  return cancelRecord?.content || ''
+})
+
 /** 任务终结状态文本 */
 const taskResultText = computed(() => {
   if (!selectedTask.value) return ''
@@ -1026,24 +1147,24 @@ const canReviewTodoTask = computed(() => {
   if (!selectedTask.value || !isMyTodo.value) return false
   const uid = userStore.userInfo?.id
   if (!uid) return false
-  if (userStore.isDirector) return selectedTask.value.assignerId === uid
-  if (userStore.userInfo?.role === 'manager') return selectedTask.value.assignerId === uid && !selectedTask.value.parentTaskId
+  if (userStore.isDirector) return selectedTask.value.assignerId === uid && !selectedTask.value.parentTaskId
+  if (userStore.currentRole === 'manager') return selectedTask.value.assignerId === uid && !selectedTask.value.parentTaskId
   return false
 })
 
-/** 是否为经理代办视图 */
+/** 是否为非员工代办视图（经理/主管/CEO 作为执行人） */
 const isManagerReceived = computed(() => {
-  return isMyTodo.value && userStore.userInfo?.role === 'manager'
+  return isMyTodo.value && userStore.currentRole !== 'staff'
 })
 
 /** 是否为经理事务列表视图 */
 const isManagerAssigned = computed(() => {
-  return currentType.value === 'assigned' && userStore.userInfo?.role === 'manager'
+  return currentType.value === 'assigned' && userStore.currentRole === 'manager'
 })
 
 /** 是否为员工代办视图 */
 const isStaffReceived = computed(() => {
-  return isMyTodo.value && userStore.userInfo?.role === 'staff'
+  return isMyTodo.value && userStore.currentRole === 'staff'
 })
 
 /** 是否使用简洁头部（无级别/编号/状态） */
@@ -1100,8 +1221,8 @@ async function showDetail(row: Task) {
   try {
     await taskStore.fetchTaskDetail(row.id)
     selectedTask.value = taskStore.currentTask
-    // 经理代办视图时预加载下属列表
-    if (isMyTodo.value && userStore.userInfo?.role === 'manager') {
+    // 非员工代办视图时预加载下属列表
+    if (isMyTodo.value && userStore.currentRole !== 'staff') {
       try {
         const res = await getSubordinatesApi()
         subordinates.value = res.data
@@ -1270,6 +1391,26 @@ async function handleInlineSubmit() {
   }
 }
 
+/** 转交任务后直接提交给上级（不需要自己填写反馈和附件） */
+async function handleDelegatedSubmit() {
+  if (!selectedTask.value) return
+  submittingInline.value = true
+  try {
+    await taskStore.submitResult(selectedTask.value.id, {
+      content: '',
+      attachments: [],
+    })
+    ElMessage.success('提交成功')
+    await taskStore.fetchTaskDetail(selectedTask.value.id)
+    selectedTask.value = { ...taskStore.currentTask! }
+    handleSearch()
+  } catch {
+    ElMessage.error('提交失败')
+  } finally {
+    submittingInline.value = false
+  }
+}
+
 /** 内联下发（经理代办面板内） */
 async function handleInlineDelegate() {
   if (!selectedTask.value || !delegateExecutorId.value) return
@@ -1322,11 +1463,32 @@ function statusSortValue(status: Task['status']) {
   return 1
 }
 
+function isPreviewable(name?: string, mimeType?: string) {
+  const ext = (name || '').split('.').pop()?.toLowerCase() || ''
+  const mime = (mimeType || '').toLowerCase()
+
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) return true
+  if (mime === 'application/pdf' || ext === 'pdf') return true
+  if (
+    mime.startsWith('text/')
+    || mime === 'application/json'
+    || mime === 'application/xml'
+    || mime === 'application/javascript'
+    || mime.endsWith('+json')
+    || mime.endsWith('+xml')
+    || mime === 'text/html'
+    || ['txt', 'md', 'json', 'xml', 'csv', 'log', 'html', 'htm'].includes(ext)
+  ) return true
+  if (mime.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return true
+  if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(ext)) return true
+  return false
+}
+
 function openPreview(fileId: string, name?: string, mimeType?: string) {
   clearPreviewObjectUrl()
   previewAttachmentId.value = fileId
   previewUploadFile.value = null
-  previewUrl.value = buildPreviewUrl(fileId)
+  previewUrl.value = isPreviewable(name, mimeType) ? buildPreviewUrl(fileId) : ''
   previewTitle.value = name || '附件预览'
   previewMimeType.value = mimeType || ''
   previewVisible.value = true
@@ -1350,6 +1512,30 @@ function handleUploadPreview(file: UploadFile) {
   previewVisible.value = true
 }
 
+function handleUploadDownload(file: UploadFile) {
+  downloadUploadFile(file as UploadUserFile)
+}
+
+function removeCreateUploadFile(file: UploadFile) {
+  const uploadFile = file as UploadUserFile
+  createFileList.value = createFileList.value.filter(item => {
+    if (uploadFile.uid != null && item.uid != null) {
+      return item.uid !== uploadFile.uid
+    }
+    return !(item.name === uploadFile.name && item.size === uploadFile.size)
+  })
+}
+
+function removeSubmitUploadFile(file: UploadFile) {
+  const uploadFile = file as UploadUserFile
+  submitFileList.value = submitFileList.value.filter(item => {
+    if (uploadFile.uid != null && item.uid != null) {
+      return item.uid !== uploadFile.uid
+    }
+    return !(item.name === uploadFile.name && item.size === uploadFile.size)
+  })
+}
+
 function handlePreviewVisibleChange(visible: boolean) {
   previewVisible.value = visible
   if (!visible) {
@@ -1364,16 +1550,6 @@ function clearPreviewObjectUrl() {
   }
 }
 
-function downloadCurrentPreview() {
-  if (previewUploadFile.value) {
-    downloadUploadFile(previewUploadFile.value)
-    return
-  }
-  if (previewAttachmentId.value) {
-    window.open(buildDownloadUrl(previewAttachmentId.value), '_blank')
-  }
-}
-
 watch(() => route.params.type, (newType) => {
   currentType.value = normalizeListType(newType as string | undefined)
   selectedTask.value = null
@@ -1381,6 +1557,7 @@ watch(() => route.params.type, (newType) => {
 })
 
 onMounted(async () => {
+  orgStore.fetchDeptList()
   handleSearch()
   // 从通知跳转来时，自动展示对应事务详情
   const taskId = route.query.taskId as string
@@ -1422,7 +1599,7 @@ onMounted(async () => {
 .filter-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
+  align-items: end;
   margin-bottom: $spacing-md;
   gap: $spacing-md;
 
@@ -1430,7 +1607,7 @@ onMounted(async () => {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 140px 140px;
     gap: $spacing-sm;
-    align-items: center;
+    align-items: end;
 
     .filter-keyword,
     .filter-select {
@@ -1441,8 +1618,12 @@ onMounted(async () => {
 
   .filter-right {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: flex-end;
+
+    .create-btn {
+      height: 32px;
+    }
   }
 }
 
@@ -1473,6 +1654,22 @@ onMounted(async () => {
     overflow: auto;
   }
 
+  .table-scroll-area {
+    flex: 1;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: scroll;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: $border-light;
+      border-radius: 6px;
+    }
+  }
+
   .level-badge-sm {
     width: 26px;
     height: 26px;
@@ -1483,6 +1680,18 @@ onMounted(async () => {
     color: white;
     font-size: $font-size-xs;
     font-weight: 700;
+  }
+
+  .level-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .level-text {
+    font-size: $font-size-xs;
+    color: $text-regular;
+    white-space: nowrap;
   }
 
   .text-danger {
@@ -1551,8 +1760,16 @@ onMounted(async () => {
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 16px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: $border-light;
+      border-radius: 6px;
+    }
   }
 }
 
@@ -1765,6 +1982,17 @@ onMounted(async () => {
 .submission-files {
   border-top: 1px solid $border-lighter;
   padding-top: $spacing-sm;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $border-light;
+    border-radius: 6px;
+  }
 }
 
 .panel-file {
@@ -1776,6 +2004,20 @@ onMounted(async () => {
   .file-name {
     font-size: $font-size-sm;
     color: $text-regular;
+  }
+}
+
+.attachment-scroll {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $border-light;
+    border-radius: 6px;
   }
 }
 
@@ -1825,6 +2067,18 @@ onMounted(async () => {
     font-size: $font-size-sm;
     padding-bottom: 4px;
   }
+  :deep(.el-upload-list) {
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  :deep(.el-upload-list::-webkit-scrollbar) {
+    width: 6px;
+  }
+  :deep(.el-upload-list::-webkit-scrollbar-thumb) {
+    background: $border-light;
+    border-radius: 6px;
+  }
 }
 
 /* 不通过理由 */
@@ -1836,6 +2090,32 @@ onMounted(async () => {
   padding: $spacing-sm $spacing-md;
   margin: 0;
   line-height: 1.5;
+}
+
+/* 提交/转交切换标签 */
+.action-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 4px;
+}
+.action-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #6B7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  &.active {
+    color: #4F6EF7;
+    border-bottom-color: #4F6EF7;
+    font-weight: 500;
+  }
+  &:hover:not(.active) {
+    color: #374151;
+  }
 }
 
 /* ====== 新建事务面板 ====== */
@@ -1856,8 +2136,17 @@ onMounted(async () => {
 
 .create-form {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
   padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $border-light;
+    border-radius: 6px;
+  }
+
   :deep(.el-form-item__label) {
     font-size: $font-size-sm;
     padding-bottom: 4px;
@@ -1921,6 +2210,28 @@ onMounted(async () => {
     .executor-dept { font-size: $font-size-xs; color: $text-secondary; }
     .change-icon { margin-left: auto; color: $text-secondary; }
   }
+}
+
+.upload-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.upload-file-name {
+  flex: 1;
+  color: $text-regular;
+  font-size: $font-size-sm;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.upload-file-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* 人员选择弹窗 */

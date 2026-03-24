@@ -23,15 +23,16 @@ public class TaskController {
 
     @PostMapping
     public ApiResponse<TaskVO> createTask(@Valid @RequestBody CreateTaskRequest request) {
+        var user = SecurityUtils.getCurrentUser();
         return ApiResponse.success(
-                taskService.createTask(request, SecurityUtils.getCurrentUserId()));
+            taskService.createTask(request, user.getUserId(), user.getRole(), user.getDeptId()));
     }
 
     @GetMapping("/list")
     public ApiResponse<PaginatedData<TaskVO>> getTaskList(TaskListParams params) {
         var user = SecurityUtils.getCurrentUser();
         return ApiResponse.success(
-                taskService.getTaskList(params, user.getUserId(), user.getRole(), user.getManagedDeptIds()));
+                taskService.getTaskList(params, user.getUserId(), user.getRole(), user.getDeptId(), user.getManagedDeptIds()));
     }
 
     @GetMapping("/{id}")
@@ -76,8 +77,9 @@ public class TaskController {
     @PostMapping("/{id}/reassign")
     public ApiResponse<TaskVO> reassignTask(
             @PathVariable String id, @Valid @RequestBody ReassignRequest request) {
+        var user = SecurityUtils.getCurrentUser();
         return ApiResponse.success(
-                taskService.reassignTask(id, request, SecurityUtils.getCurrentUserId()));
+            taskService.reassignTask(id, request, user.getUserId(), user.getRole(), user.getDeptId()));
     }
 
     @PutMapping("/{id}/cancel")
