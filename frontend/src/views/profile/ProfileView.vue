@@ -59,15 +59,22 @@
             </el-tab-pane>
 
             <el-tab-pane label="修改密码" name="password">
-              <el-form :model="pwdForm" label-width="100px" style="max-width: 500px; margin-top: 16px">
-                <el-form-item label="当前密码">
-                  <el-input v-model="pwdForm.oldPassword" type="password" show-password />
+              <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="100px" style="max-width: 500px; margin-top: 16px">
+                <el-form-item label="手机号" prop="phone">
+                  <el-input v-model="pwdForm.phone" placeholder="请输入手机号" clearable />
                 </el-form-item>
-                <el-form-item label="新密码">
-                  <el-input v-model="pwdForm.newPassword" type="password" show-password />
+                <el-form-item label="新密码" prop="newPassword">
+                  <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="请输入新密码" />
                 </el-form-item>
-                <el-form-item label="确认新密码">
-                  <el-input v-model="pwdForm.confirmPassword" type="password" show-password />
+                <el-form-item label="确认新密码" prop="confirmPassword">
+                  <el-input v-model="pwdForm.confirmPassword" type="password" show-password placeholder="请确认新密码" />
+                </el-form-item>
+                <el-form-item label="验证码" prop="smsCode">
+                  <div style="display: flex; gap: 8px; width: 100%">
+                    <el-input v-model="pwdForm.smsCode" placeholder="请输入短信验证码" clearable />
+                    <el-button @click="sendSmsCode">获取验证码</el-button>
+                  </div>
+                  <div v-if="smsHint" style="color: #E6A23C; font-size: 12px; margin-top: 4px;">{{ smsHint }}</div>
                 </el-form-item>
                 <el-form-item>
                   <el-button type="primary" :loading="changingPwd" @click="handleChangePwd">修改密码</el-button>
@@ -84,8 +91,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores'
-import { changePasswordApi } from '@/api/user'
+import { resetPasswordApi } from '@/api/user'
 
 const userStore = useUserStore()
 const activeTab = ref('info')
@@ -93,29 +101,80 @@ const changingPwd = ref(false)
 const isAdminUser = computed(() => userStore.userInfo?.role === 'admin')
 const displayProfileName = computed(() => isAdminUser.value ? '用户' : (userStore.userInfo?.name || '-'))
 
+const pwdFormRef = ref<FormInstance>()
+const fakeSmsCode = ref('')
+const smsHint = ref('')
+
 const pwdForm = ref({
-  oldPassword: '',
+  phone: '',
   newPassword: '',
   confirmPassword: '',
+  smsCode: '',
 })
 
-async function handleChangePwd() {
-  if (!pwdForm.value.oldPassword || !pwdForm.value.newPassword || !pwdForm.value.confirmPassword) {
-    ElMessage.warning('请完整填写密码信息')
+const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,20}$/
+
+const pwdRules: FormRules = {
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确手机号', trigger: 'blur' },
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (!value) { callback(new Error('请输入新密码')); return }
+        if (!strongPasswordPattern.test(value)) {
+          callback(new Error('密码需 8-20 位，含大小写字母、数字和特殊字符'))
+        } else { callback() }
+      },
+      trigger: 'blur',
+    },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (value && value !== pwdForm.value.newPassword) {
+          callback(new Error('两次输入密码不一致'))
+        } else { callback() }
+      },
+      trigger: 'blur',
+    },
+  ],
+  smsCode: [
+    { required: true, message: '请输入短信验证码', trigger: 'blur' },
+    { len: 6, message: '验证码为6位数字', trigger: 'blur' },
+  ],
+}
+
+function sendSmsCode() {
+  if (!/^1[3-9]\d{9}$/.test(pwdForm.value.phone)) {
+    ElMessage.warning('请先输入正确手机号')
     return
   }
-  if (pwdForm.value.newPassword !== pwdForm.value.confirmPassword) {
-    ElMessage.warning('两次输入的密码不一致')
+  fakeSmsCode.value = Math.floor(100000 + Math.random() * 900000).toString()
+  smsHint.value = `模拟短信验证码：${fakeSmsCode.value}`
+  ElMessage.success('短信验证码已发送（模拟）')
+}
+
+async function handleChangePwd() {
+  if (!pwdFormRef.value) return
+  await pwdFormRef.value.validate()
+  if (!fakeSmsCode.value || pwdForm.value.smsCode.trim() !== fakeSmsCode.value) {
+    ElMessage.warning('短信验证码错误')
     return
   }
   changingPwd.value = true
   try {
-    await changePasswordApi({
-      oldPassword: pwdForm.value.oldPassword,
+    await resetPasswordApi({
+      phone: pwdForm.value.phone,
       newPassword: pwdForm.value.newPassword,
     })
     ElMessage.success('密码修改成功')
-    pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+    pwdForm.value = { phone: '', newPassword: '', confirmPassword: '', smsCode: '' }
+    fakeSmsCode.value = ''
+    smsHint.value = ''
   } catch {
     // 错误由响应拦截器统一处理
   } finally {

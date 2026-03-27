@@ -88,7 +88,8 @@
               />
             </el-form-item>
 
-            <el-form-item prop="captcha">
+            <!-- 验证码功能暂时隐藏 -->
+            <el-form-item v-if="false" prop="captcha">
               <div class="captcha-row">
                 <el-input
                   v-model="form.captcha"
@@ -201,19 +202,20 @@ const forgotForm = reactive({
 
 const formRules: FormRules = {
   ...loginFormRules,
-  captcha: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    {
-      validator: (_rule: any, value: string, callback: any) => {
-        if (value && value.toUpperCase() !== captchaText.value.toUpperCase()) {
-          callback(new Error('验证码不正确'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
+  // 验证码规则暂时禁用
+  // captcha: [
+  //   { required: true, message: '请输入验证码', trigger: 'blur' },
+  //   {
+  //     validator: (_rule: any, value: string, callback: any) => {
+  //       if (value && value.toUpperCase() !== captchaText.value.toUpperCase()) {
+  //         callback(new Error('验证码不正确'))
+  //       } else {
+  //         callback()
+  //       }
+  //     },
+  //     trigger: 'blur',
+  //   },
+  // ],
 }
 
 const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,20}$/
@@ -314,13 +316,6 @@ async function handleLogin() {
   if (!formRef.value) return
   await formRef.value.validate()
 
-  // 验证码校验
-  if (form.captcha.toUpperCase() !== captchaText.value.toUpperCase()) {
-    ElMessage.warning('验证码不正确')
-    refreshCaptcha()
-    return
-  }
-
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
@@ -332,7 +327,7 @@ async function handleLogin() {
     const redirect = (route.query.redirect as string) || defaultPath
     router.push(redirect)
   } catch (e: any) {
-    refreshCaptcha()
+    // captcha refresh disabled
   } finally {
     loading.value = false
   }

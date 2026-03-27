@@ -82,7 +82,7 @@ public class AuthServiceImpl implements AuthService {
         List<RoleContext> contexts = new ArrayList<>();
         String baseRole = user.getRole();
 
-        // 基本角色
+        // 只返回用户的真实角色（不再允许切换）
         String baseDeptName = "";
         if (user.getDeptId() != null) {
             Department dept = deptMapper.selectById(user.getDeptId());
@@ -90,19 +90,6 @@ public class AuthServiceImpl implements AuthService {
         }
         String baseLabel = roleLabel(baseRole);
         contexts.add(new RoleContext(baseRole, user.getDeptId(), baseDeptName, baseLabel));
-
-        // 顾层角色(ceo/director)兼任的第二层部门负责人
-        if ("ceo".equals(baseRole) || "director".equals(baseRole)) {
-            List<String> managedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(userId);
-            for (String managedDeptId : managedDeptIds) {
-                Department managedDept = deptMapper.selectById(managedDeptId);
-                if (managedDept != null && Integer.valueOf(1).equals(managedDept.getLevel())) {
-                    contexts.add(new RoleContext(
-                            "manager", managedDeptId, managedDept.getName(),
-                            managedDept.getName() + "负责人"));
-                }
-            }
-        }
 
         return contexts;
     }

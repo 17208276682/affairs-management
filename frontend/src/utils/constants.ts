@@ -12,7 +12,7 @@ export const TASK_STATUS_MAP: Record<string, { label: string; color: string; bgC
   approved:    { label: '已通过', color: '#22C55E', bgColor: '#ECFDF5' },
   rejected:    { label: '已驳回', color: '#EF4444', bgColor: '#FEF2F2' },
   completed:   { label: '已完成', color: '#10B981', bgColor: '#ECFDF5' },
-  overdue:     { label: '已逾期', color: '#DC2626', bgColor: '#FEF2F2' },
+  overdue:     { label: '已逾期', color: '#8B5CF6', bgColor: '#F5F3FF' },
   cancelled:   { label: '已取消', color: '#9CA3AF', bgColor: '#F3F4F6' },
 }
 

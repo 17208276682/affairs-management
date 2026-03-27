@@ -19,6 +19,7 @@ backend/.mvn/wrapper/maven-wrapper.jar
 backend/*.iml
 backend/src/main/resources/application.yml
 backend/src/main/resources/static/
+deployment
 # ===== Editor =====
 .vscode/*
 !.vscode/extensions.json

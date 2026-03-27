@@ -218,12 +218,14 @@ public class MemberServiceImpl implements MemberService {
         if ("subordinates".equals(scope)) {
             if (currentDeptId == null) {
                 users = Collections.emptyList();
+            } else if ("ceo".equals(currentRole) || "director".equals(currentRole)) {
+                // 总经办：合并"下一级部门负责人" + "兼任部门的下级"
+                users = resolveTopLevelSubordinates(currentUserId, currentRole, currentDeptId);
             } else if ("manager".equals(currentRole)) {
                 Map<String, User> selected = new LinkedHashMap<>();
 
                 List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
                 if (!childDepts.isEmpty()) {
-                    // 有子部门 → 只显示子部门负责人
                     List<String> childDeptIds = childDepts.stream()
                             .map(Department::getId)
                             .collect(Collectors.toList());
@@ -232,7 +234,6 @@ public class MemberServiceImpl implements MemberService {
                             .filter(u -> "manager".equals(u.getRole()))
                             .forEach(u -> selected.put(u.getId(), u));
                 } else {
-                    // 没有子部门 → 只显示本部门 staff
                     userMapper.selectByDeptId(currentDeptId).stream()
                             .filter(u -> !u.getId().equals(currentUserId))
                             .filter(u -> "staff".equals(u.getRole()))
@@ -240,20 +241,17 @@ public class MemberServiceImpl implements MemberService {
                 }
 
                 users = new ArrayList<>(selected.values());
-            } else if ("ceo".equals(currentRole) || "director".equals(currentRole)) {
-                users = resolveTopLevelSubordinates(currentUserId, currentRole, currentDeptId);
             } else {
                 users = Collections.emptyList();
             }
         } else if (deptIds != null && !deptIds.isEmpty()) {
-            // 指定部门的成员
             users = userMapper.selectByDeptIds(deptIds);
             users = users.stream()
                     .filter(u -> !u.getId().equals(currentUserId))
-                    .filter(u -> !"ceo".equals(u.getRole()) && !"admin".equals(u.getRole()))
+                    .filter(u -> !"ceo".equals(u.getRole()) && !"admin".equals(u.getRole())
+                                 && !"director".equals(u.getRole()))
                     .collect(Collectors.toList());
         } else {
-            // 默认：管辖部门负责人列表
             List<String> managedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(currentUserId);
             if (managedDeptIds.isEmpty()) {
                 return Collections.emptyList();
@@ -343,14 +341,34 @@ public class MemberServiceImpl implements MemberService {
         Map<String, User> selected = new LinkedHashMap<>();
         List<String> assignerManagedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(currentUserId);
 
-        // 作为 ceo/director，仅显示下一级部门的负责人（排除自己兼任的部门）
+        // 1. 作为 ceo/director，显示下一级部门的负责人（排除 ceo/director 角色）
         List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
         for (Department childDept : childDepts) {
             if (assignerManagedDeptIds.contains(childDept.getId())) {
-                continue; // 自己兼任负责人的部门，跳过（需切换到该部门负责人角色才可以下发）
+                continue; // 自己兼任的部门，由路径2处理
             }
             addDeptHeads(childDept.getId(), currentUserId, selected);
         }
+
+        // 2. 作为兼任部门负责人，显示管理部门的下级
+        for (String managedDeptId : assignerManagedDeptIds) {
+            List<Department> managedChildDepts = deptMapper.selectChildren(managedDeptId);
+            if (!managedChildDepts.isEmpty()) {
+                // 有子部门 → 显示子部门负责人（排除 ceo/director）
+                for (Department managedChildDept : managedChildDepts) {
+                    addDeptHeads(managedChildDept.getId(), currentUserId, selected);
+                }
+            } else {
+                // 没有子部门 → 显示本部门 staff
+                userMapper.selectByDeptId(managedDeptId).stream()
+                        .filter(u -> !u.getId().equals(currentUserId))
+                        .filter(u -> "staff".equals(u.getRole()))
+                        .forEach(u -> selected.put(u.getId(), u));
+            }
+        }
+
+        // 过滤掉 ceo/director 角色（不能给总经办下发任务）
+        selected.values().removeIf(u -> "ceo".equals(u.getRole()) || "director".equals(u.getRole()));
 
         return new ArrayList<>(selected.values());
     }

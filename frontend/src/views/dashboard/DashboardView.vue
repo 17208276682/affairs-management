@@ -7,7 +7,10 @@
           <template v-if="role === 'manager'">
             <div class="panel-row panel-status-group">
               <article class="panel-card status-group-card">
-                <div class="status-group-card__header">上级事务</div>
+                <div class="status-group-card__header">
+                  <span>上级事务</span>
+                  <span class="status-group-total">事务总数：{{ statusCountMap.recv_total ?? 0 }}</span>
+                </div>
                 <div class="status-group__cards count-6">
                   <div
                     v-for="item in managerRecvStatuses"
@@ -24,7 +27,10 @@
                 </div>
               </article>
               <article class="panel-card status-group-card">
-                <div class="status-group-card__header">部门事务</div>
+                <div class="status-group-card__header">
+                  <span>部门事务</span>
+                  <span class="status-group-total">事务总数：{{ statusCountMap.dept_total ?? 0 }}</span>
+                </div>
                 <div class="status-group__cards count-6">
                   <div
                     v-for="item in managerDeptStatuses"
@@ -64,18 +70,28 @@
             <article class="panel-card activity-panel">
               <div class="panel-card__header">
                 <div>
-                  <p class="panel-card__eyebrow">最新动态</p>
                   <h3>{{ panelConfig.activityTitle }}</h3>
                 </div>
-                <span class="panel-card__badge">{{ roleActivities.length }} 条</span>
+                <div class="activity-header-right">
+                  <template v-if="role === 'manager'">
+                    <span
+                      v-for="tab in activityTabs"
+                      :key="tab.value"
+                      class="activity-tab"
+                      :class="{ active: activityFilter === tab.value }"
+                      @click="activityFilter = tab.value"
+                    >{{ tab.label }}</span>
+                  </template>
+                  <span class="panel-card__badge">{{ displayedActivities.length }} 条</span>
+                </div>
               </div>
 
-              <div v-if="roleActivities.length" class="activity-list">
-                <div v-for="activity in roleActivities" :key="activity.id" class="activity-item">
+              <div v-if="displayedActivities.length" class="activity-list">
+                <div v-for="activity in displayedActivities" :key="activity.id" class="activity-item">
                   <span class="activity-icon" :class="`type-${activity.type}`"></span>
                   <div class="activity-content">
-                    <p>{{ activity.content }}</p>
-                    <span>{{ formatRelativeTime(activity.time) }}</span>
+                    <span class="activity-text">{{ activity.content }}</span>
+                    <span class="activity-time">{{ formatRelativeTime(activity.time) }}</span>
                   </div>
                 </div>
               </div>
@@ -85,16 +101,26 @@
             <article class="panel-card chart-panel pie-panel">
               <div class="panel-card__header">
                 <div>
-                  <p class="panel-card__eyebrow">级别分布</p>
                   <h3>{{ panelConfig.pieTitle }}</h3>
                 </div>
-                <span class="panel-card__badge">共 {{ pieTotal }} 项</span>
+                <div class="pie-header-right">
+                  <template v-if="role === 'manager'">
+                    <span
+                      v-for="tab in pieTabs"
+                      :key="tab.value"
+                      class="activity-tab"
+                      :class="{ active: pieFilter === tab.value }"
+                      @click="pieFilter = tab.value"
+                    >{{ tab.label }}</span>
+                  </template>
+                  <span class="panel-card__badge">共 {{ pieTotal }} 项</span>
+                </div>
               </div>
 
               <div class="pie-panel__body">
                 <VChart class="chart chart-pie" :option="pieOption" autoresize />
                 <div class="pie-legend">
-                  <div v-for="item in pieDataset" :key="item.level" class="pie-legend__item">
+                  <div v-for="item in filteredPieDataset" :key="item.level" class="pie-legend__item">
                     <span class="pie-legend__dot" :style="{ background: item.color }"></span>
                     <span class="pie-legend__label">{{ item.label }}</span>
                     <strong>{{ item.value }}</strong>
@@ -106,47 +132,31 @@
 
           <div v-if="showChartPanel" class="panel-row panel-chart-row">
             <article class="panel-card chart-panel bar-panel">
-              <div class="panel-card__header">
-                <div>
-                  <p class="panel-card__eyebrow">事务统计</p>
-                  <h3>{{ panelConfig.barTitle }}</h3>
-                </div>
-                <div v-if="role === 'manager'" class="manager-chart-controls">
-                  <el-radio-group v-model="managerChartMode" size="small">
-                    <el-radio-button value="time">时间统计</el-radio-button>
-                    <el-radio-button value="person">人员统计</el-radio-button>
-                  </el-radio-group>
-                  <template v-if="managerChartMode === 'time'">
-                    <el-select v-model="managerSelectedUser" size="small" placeholder="全部人员" clearable style="width: 100px; margin-left: 8px">
-                      <el-option v-for="u in managedUsers" :key="u.id" :label="u.name" :value="u.name" />
-                    </el-select>
-                    <div class="line-month-selector" style="margin-left: 8px">
-                      <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
-                      <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
-                      <el-button size="small" :type="lineMonthMode === 'next' ? 'primary' : ''" @click="setLineMonth('next')">次月</el-button>
-                      <el-date-picker
-                        v-model="lineCustomMonth"
-                        type="month"
-                        placeholder="自定义月份"
-                        size="small"
-                        style="width: 130px; margin-left: 4px"
-                        @change="onCustomMonthChange"
-                      />
-                    </div>
+              <div class="bar-panel__header">
+                <!-- 第一行：标题 + 控制区 -->
+                <div class="bar-header-top">
+                  <div class="bar-header-title">
+                    <h3>事务统计</h3>
+                  </div>
+                  <div v-if="showMonthSelector" class="line-month-selector">
+                    <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
+                    <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
+                    <el-button size="small" :type="lineMonthMode === 'next' ? 'primary' : ''" @click="setLineMonth('next')">次月</el-button>
+                    <el-date-picker
+                      v-model="lineCustomMonth"
+                      type="month"
+                      placeholder="自定义"
+                      size="small"
+                      style="width: 110px"
+                      @change="onCustomMonthChange"
+                    />
+                  </div>
+                  <template v-if="role === 'manager'">
+                    <el-radio-group v-model="managerChartMode" size="small" class="bar-mode-switcher">
+                      <el-radio-button value="person">部门事务</el-radio-button>
+                      <el-radio-button value="time">上级事务</el-radio-button>
+                    </el-radio-group>
                   </template>
-                </div>
-                <div v-else-if="role === 'staff'" class="line-month-selector">
-                  <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
-                  <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
-                  <el-button size="small" :type="lineMonthMode === 'next' ? 'primary' : ''" @click="setLineMonth('next')">次月</el-button>
-                  <el-date-picker
-                    v-model="lineCustomMonth"
-                    type="month"
-                    placeholder="自定义月份"
-                    size="small"
-                    style="width: 130px; margin-left: 4px"
-                    @change="onCustomMonthChange"
-                  />
                 </div>
               </div>
 
@@ -160,7 +170,6 @@
         <div class="view-shell">
           <div class="view-shell__header">
             <div>
-              <p class="panel-card__eyebrow">时间与优先级视图</p>
               <h3>任务全景追踪</h3>
             </div>
           </div>
@@ -197,10 +206,9 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
-                          <div class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</div>
-                          <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }} · {{ task.executorName }}</div>
+                          <span class="time-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                          <span class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</span>
                         </div>
                       </div>
                     </div>
@@ -240,10 +248,9 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
-                          <div class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</div>
-                          <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }} · {{ task.executorName }}</div>
+                          <span class="time-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                          <span class="time-task-title">{{ (task.description || task.title).substring(0, 20) }}</span>
                         </div>
                       </div>
                     </div>
@@ -283,10 +290,9 @@
                           v-for="task in col.tasksByHour[hour] || []"
                           :key="task.id"
                           class="time-task"
-                          :style="{ borderLeftColor: getTaskStatusColor(task) }"
                         >
-                          <div class="time-task-title">{{ (task.description || task.title).substring(0, 16) }}</div>
-                          <div class="time-task-meta">{{ formatWeekTaskTime(task.completionDeadline) }}</div>
+                          <span class="time-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                          <span class="time-task-title">{{ (task.description || task.title).substring(0, 16) }}</span>
                         </div>
                       </div>
                     </div>
@@ -330,14 +336,14 @@
                       <div class="month-cell-date">{{ cell.day }}</div>
                       <div v-if="cell.tasks.length" class="month-cell-tasks">
                         <div
-                          v-for="task in cell.tasks.slice(0, 2)"
+                          v-for="task in cell.tasks.slice(0, 4)"
                           :key="task.id"
                           class="month-task-item"
                         >
                           <span class="month-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
                           <span class="month-task-text">{{ (task.description || task.title).substring(0, 4) }}</span>
                         </div>
-                        <span v-if="cell.tasks.length > 2" class="month-task-more">+{{ cell.tasks.length - 2 }}</span>
+                        <span v-if="cell.tasks.length > 4" class="month-task-more">+{{ cell.tasks.length - 4 }}</span>
                       </div>
                     </div>
                   </el-tooltip>
@@ -361,9 +367,9 @@
                     </div>
 
                     <div class="quadrant-list">
-                      <div v-for="task in quadrant.tasks" :key="task.id" class="quadrant-item" :style="{ borderLeftColor: getTaskStatusColor(task) }">
-                        <div class="quadrant-item-desc">{{ (task.description || task.title).substring(0, 20) }}</div>
-                        <div class="quadrant-item-meta">{{ task.executorName }} · {{ statusDisplay(task.status).label }}</div>
+                      <div v-for="task in quadrant.tasks" :key="task.id" class="quadrant-item">
+                        <span class="quadrant-item-dot" :style="{ background: getTaskStatusColor(task) }"></span>
+                        <span class="quadrant-item-desc">{{ (task.description || task.title).substring(0, 20) }}</span>
                       </div>
                       <el-empty v-if="!quadrant.tasks.length" description="暂无" :image-size="38" />
                     </div>
@@ -403,6 +409,7 @@ type StatusKey = 'assigned' | 'pending' | 'completed' | 'rejected' | 'cancelled'
   | 'onTimeCompleted' | 'overdueCompleted' | 'failedReview' | 'todoTasks' | 'overdueUnfinished'
   | 'recv_onTimeCompleted' | 'recv_overdueCompleted' | 'recv_failedReview' | 'recv_todoTasks' | 'recv_overdueUnfinished' | 'recv_cancelled'
   | 'dept_onTimeCompleted' | 'dept_overdueCompleted' | 'dept_failedReview' | 'dept_todoTasks' | 'dept_overdueUnfinished' | 'dept_cancelled'
+  | 'recv_total' | 'dept_total'
 
 interface StatusCardConfig {
   key: StatusKey
@@ -414,7 +421,17 @@ interface StatusCardConfig {
 
 const userStore = useUserStore()
 
-const roleActivities = ref<{ id: string; type: string; content: string; time: string }[]>([])
+const roleActivities = ref<{ id: string; type: string; content: string; time: string; category?: string }[]>([])
+const activityFilter = ref<'all' | 'superior' | 'dept'>('all')
+const activityTabs = [
+  { label: '全部', value: 'all' as const },
+  { label: '上级', value: 'superior' as const },
+  { label: '部门', value: 'dept' as const },
+]
+const displayedActivities = computed(() => {
+  if (activityFilter.value === 'all') return roleActivities.value
+  return roleActivities.value.filter(a => a.category === activityFilter.value)
+})
 const assignedTasks = ref<Task[]>([])
 const scopeTasks = ref<Task[]>([])
 const todoTasks = ref<Task[]>([])
@@ -452,7 +469,7 @@ const managerRecvStatuses: StatusCardConfig[] = [
   { key: 'recv_overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
   { key: 'recv_failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
   { key: 'recv_todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
-  { key: 'recv_overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+  { key: 'recv_overdueUnfinished', label: '逾期未完成', color: '#8B5CF6', glow: 'rgba(139, 92, 246, 0.16)', note: '超过截止未完成' },
   { key: 'recv_cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
 ]
 const managerDeptStatuses: StatusCardConfig[] = [
@@ -460,7 +477,7 @@ const managerDeptStatuses: StatusCardConfig[] = [
   { key: 'dept_overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
   { key: 'dept_failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
   { key: 'dept_todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
-  { key: 'dept_overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
+  { key: 'dept_overdueUnfinished', label: '逾期未完成', color: '#8B5CF6', glow: 'rgba(139, 92, 246, 0.16)', note: '超过截止未完成' },
   { key: 'dept_cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
 ]
 
@@ -471,44 +488,56 @@ const role = computed<PanelRole>(() => {
   return 'director'
 })
 
+const showMonthSelector = computed(() => {
+  if (role.value === 'staff') return true
+  if (role.value === 'manager' && managerChartMode.value === 'time') return true
+  return false
+})
+
+const currentChartSubtitle = computed(() => {
+  if (role.value === 'manager') return managerChartMode.value === 'person' ? '部门事务' : '上级事务'
+  if (role.value === 'staff') return '时间统计'
+  return '人员统计'
+})
+
 const panelConfig = computed(() => {
   const common = {
     director: {
       title: '高级管理者事务驾驶舱',
       subtitle: '全局协同视角',
-      activityTitle: '下级动态',
-      pieTitle: '已下达事务级别分布',
+      activityTitle: '事务动态',
+      pieTitle: '事务级别',
       barTitle: '人员事务状态分布',
       statuses: [
-        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
-        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
-        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
-        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
-        { key: 'overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
-        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
+        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审\n核通过的事务' },
+        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审\n核通过的事务' },
+        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '按时或逾期的\n未通过的事务' },
+        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止时间\n未完成的事务' },
+        { key: 'overdueUnfinished', label: '逾期未完成', color: '#8B5CF6', glow: 'rgba(139, 92, 246, 0.16)', note: '逾期并且未按\n时完成的事务' },
+        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '下发任务标记\n为作废的事务' },
       ] satisfies StatusCardConfig[],
     },
     manager: {
       title: '中级管理者事务驾驶舱',
       subtitle: '部门协同视角',
-      activityTitle: '上下级动态',
-      pieTitle: '上下级事务级别分布',
+      activityTitle: '事务动态',
+      pieTitle: '事务级别',
       barTitle: '人员事务状态分布',
       statuses: [] as StatusCardConfig[],
     },
     staff: {
       title: '普通员工事务驾驶舱',
       subtitle: '个人执行视角',
-      activityTitle: '我的动态',
-      pieTitle: '我的事务级别分布',
+      activityTitle: '事务动态',
+      pieTitle: '事务级别',
       barTitle: '每日事务状态趋势',
       statuses: [
-        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审核通过' },
-        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审核通过' },
-        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '审核未通过的事务' },
-        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止且未完成' },
-        { key: 'overdueUnfinished', label: '逾期未完成', color: '#de5a6a', glow: 'rgba(222, 90, 106, 0.16)', note: '超过截止未完成' },
-        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '已标记作废' },
+        { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审\n核通过的事务' },
+        { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审\n核通过的事务' },
+        { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '按时或逾期的\n未通过的事务' },
+        { key: 'todoTasks', label: '待办事务数', color: '#5a8dee', glow: 'rgba(90, 141, 238, 0.16)', note: '未到截止时间\n未完成的事务' },
+        { key: 'overdueUnfinished', label: '逾期未完成', color: '#8B5CF6', glow: 'rgba(139, 92, 246, 0.16)', note: '逾期并且未按\n时完成的事务' },
+        { key: 'cancelled', label: '作废事务数', color: '#96a0af', glow: 'rgba(150, 160, 175, 0.16)', note: '下发任务标记\n为作废的事务' },
       ] satisfies StatusCardConfig[],
     },
   }
@@ -556,18 +585,22 @@ const statusCountMap = computed<Record<StatusKey, number>>(() => {
   const recv = classifyTasks(receivedTasks.value)
   const dept = classifyTasks(directorRootTasks.value)
 
+  // director/staff: 用本地任务分类，避免转交链重复计数
+  const localPool = role.value === 'director' ? directorRootTasks.value : receivedTasks.value
+  const local = classifyTasks(localPool)
+
   return {
     assigned: assignedTasks.value.length,
     pending: todoTasks.value.length,
     completed: scopeTasks.value.filter(task => isDisplayCompleted(task.status)).length,
     rejected: scopeTasks.value.filter(task => task.status === 'rejected').length,
-    cancelled: ov ? ov.cancelledTasks : scopeTasks.value.filter(task => task.status === 'cancelled').length,
+    cancelled: local.cancelled,
     overdue: scopeTasks.value.filter(task => task.status === 'overdue').length,
-    onTimeCompleted: ov?.onTimeCompleted ?? 0,
-    overdueCompleted: ov?.overdueCompleted ?? 0,
-    failedReview: ov?.failedReview ?? 0,
-    todoTasks: ov?.todoTasks ?? 0,
-    overdueUnfinished: ov?.overdueUnfinished ?? 0,
+    onTimeCompleted: local.onTimeCompleted,
+    overdueCompleted: local.overdueCompleted,
+    failedReview: local.failedReview,
+    todoTasks: local.todoTasks,
+    overdueUnfinished: local.overdueUnfinished,
     // manager 上级事务（收到的）
     recv_onTimeCompleted: recv.onTimeCompleted,
     recv_overdueCompleted: recv.overdueCompleted,
@@ -582,6 +615,9 @@ const statusCountMap = computed<Record<StatusKey, number>>(() => {
     dept_todoTasks: dept.todoTasks,
     dept_overdueUnfinished: dept.overdueUnfinished,
     dept_cancelled: dept.cancelled,
+    // manager 事务总数
+    recv_total: recv.onTimeCompleted + recv.overdueCompleted + recv.failedReview + recv.todoTasks + recv.overdueUnfinished + recv.cancelled,
+    dept_total: dept.onTimeCompleted + dept.overdueCompleted + dept.failedReview + dept.todoTasks + dept.overdueUnfinished + dept.cancelled,
   }
 })
 
@@ -591,6 +627,13 @@ const LEVEL_CHINESE_MAP: Record<string, string> = {
   C: '重要不紧急',
   D: '不重要不紧急',
 }
+
+const pieFilter = ref<'all' | 'superior' | 'dept'>('all')
+const pieTabs = [
+  { label: '全部', value: 'all' as const },
+  { label: '上级', value: 'superior' as const },
+  { label: '部门', value: 'dept' as const },
+]
 
 const pieDataset = computed(() => {
   const useChinese = true
@@ -605,7 +648,18 @@ const pieDataset = computed(() => {
   }))
 })
 
-const pieTotal = computed(() => pieDataset.value.reduce((sum, item) => sum + item.value, 0))
+const filteredPieDataset = computed(() => {
+  if (role.value !== 'manager' || pieFilter.value === 'all') return pieDataset.value
+  const pool = pieFilter.value === 'superior' ? receivedTasks.value : directorRootTasks.value
+  return (['A', 'B', 'C', 'D'] as TaskLevel[]).map(level => ({
+    level,
+    label: LEVEL_CHINESE_MAP[level],
+    value: pool.filter(task => task.level === level).length,
+    color: TASK_LEVEL_MAP[level].color,
+  }))
+})
+
+const pieTotal = computed(() => filteredPieDataset.value.reduce((sum, item) => sum + item.value, 0))
 
 const pieOption = computed<EChartsOption>(() => ({
   tooltip: {
@@ -622,19 +676,17 @@ const pieOption = computed<EChartsOption>(() => ({
       center: ['42%', '52%'],
       avoidLabelOverlap: true,
       label: {
-        color: '#617287',
-        fontSize: 12,
-        formatter: '{b}\n{c}',
+        show: false,
       },
       labelLine: {
-        lineStyle: { color: 'rgba(108, 126, 151, 0.36)' },
+        show: false,
       },
       itemStyle: {
         borderRadius: 12,
         borderColor: '#fffdfb',
         borderWidth: 4,
       },
-      data: pieDataset.value.map(item => ({
+      data: filteredPieDataset.value.map(item => ({
         name: item.label,
         value: item.value,
         itemStyle: { color: item.color },
@@ -692,14 +744,19 @@ const STACKED_SERIES = [
   { key: 'overdueCompleted', name: '逾期完成', color: '#f3a64b' },
   { key: 'failedReview', name: '审核未通过', color: '#e06472' },
   { key: 'todoTasks', name: '待办事务', color: '#5a8dee' },
-  { key: 'overdueUnfinished', name: '逾期未完成', color: '#de5a6a' },
+  { key: 'overdueUnfinished', name: '逾期未完成', color: '#8B5CF6' },
   { key: 'cancelledTasks', name: '已作废', color: '#96a0af' },
 ] as const
 
 const barOption = computed<EChartsOption>(() => {
+  const dataLen = barSource.value.length
+  const maxVisible = 8
+  const needScroll = dataLen > maxVisible
+  const endPercent = needScroll ? Math.round((maxVisible / dataLen) * 100) : 100
+
   if (role.value === 'director' || role.value === 'manager') {
     return {
-      grid: { top: 30, right: 16, bottom: 6, left: 12, containLabel: true },
+      grid: { top: 10, right: 100, bottom: 6, left: 12, containLabel: true },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
@@ -708,24 +765,33 @@ const barOption = computed<EChartsOption>(() => {
         textStyle: { color: '#fff' },
       },
       legend: {
+        orient: 'vertical',
         right: 0,
-        top: 0,
+        top: 'middle',
         itemWidth: 10,
         itemHeight: 10,
-        textStyle: { color: '#708097', fontSize: 12 },
+        itemGap: 14,
+        textStyle: { color: '#708097', fontSize: 11 },
       },
-      xAxis: {
+      yAxis: {
         type: 'category',
         data: barSource.value.map(item => item.label),
         axisTick: { show: false },
         axisLine: { lineStyle: { color: '#dbe4f0' } },
         axisLabel: { color: '#607087', fontSize: 12, interval: 0 },
+        inverse: true,
       },
-      yAxis: {
+      xAxis: {
         type: 'value',
         splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
         axisLabel: { color: '#8391a4', fontSize: 12 },
       },
+      dataZoom: needScroll
+        ? [
+            { type: 'slider', yAxisIndex: 0, start: 0, end: endPercent, right: 0, width: 14 },
+            { type: 'inside', yAxisIndex: 0, start: 0, end: endPercent },
+          ]
+        : [],
       series: STACKED_SERIES.map(s => ({
         name: s.name,
         type: 'bar' as const,
@@ -753,25 +819,32 @@ const barOption = computed<EChartsOption>(() => {
       itemHeight: 10,
       textStyle: { color: '#708097', fontSize: 12 },
     },
-    xAxis: {
+    yAxis: {
       type: 'category',
       data: barSource.value.map(item => item.label),
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#dbe4f0' } },
       axisLabel: { color: '#607087', fontSize: 12, interval: 0 },
+      inverse: true,
     },
-    yAxis: {
+    xAxis: {
       type: 'value',
       splitLine: { lineStyle: { color: 'rgba(141, 159, 182, 0.18)' } },
       axisLabel: { color: '#8391a4', fontSize: 12 },
     },
+    dataZoom: needScroll
+      ? [
+          { type: 'slider', yAxisIndex: 0, start: 0, end: endPercent, right: 0, width: 14 },
+          { type: 'inside', yAxisIndex: 0, start: 0, end: endPercent },
+        ]
+      : [],
     series: [
       {
         name: '总事务数',
         type: 'bar',
         barMaxWidth: 22,
         itemStyle: {
-          borderRadius: [10, 10, 0, 0],
+          borderRadius: [0, 10, 10, 0],
           color: '#93b7ff',
         },
         data: barSource.value.map(item => (item as any).total ?? 0),
@@ -781,7 +854,7 @@ const barOption = computed<EChartsOption>(() => {
         type: 'bar',
         barMaxWidth: 22,
         itemStyle: {
-          borderRadius: [10, 10, 0, 0],
+          borderRadius: [0, 10, 10, 0],
           color: '#67c8a0',
         },
         data: barSource.value.map(item => (item as any).completed ?? 0),
@@ -816,7 +889,7 @@ const LINE_SERIES_DEF = [
   { key: 'overdueCompleted', name: '逾期完成', color: '#f3a64b' },
   { key: 'failedReview', name: '审核未通过', color: '#e06472' },
   { key: 'todoTasks', name: '待办事务', color: '#5a8dee' },
-  { key: 'overdueUnfinished', name: '逾期未完成', color: '#de5a6a' },
+  { key: 'overdueUnfinished', name: '逾期未完成', color: '#8B5CF6' },
   { key: 'cancelledTasks', name: '已作废', color: '#96a0af' },
 ] as const
 
@@ -867,7 +940,7 @@ const lineChartData = computed(() => {
 })
 
 const lineOption = computed<EChartsOption>(() => ({
-  grid: { top: 36, right: 16, bottom: 6, left: 12, containLabel: true },
+  grid: { top: 10, right: 100, bottom: 6, left: 12, containLabel: true },
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(36, 50, 74, 0.92)',
@@ -875,11 +948,13 @@ const lineOption = computed<EChartsOption>(() => ({
     textStyle: { color: '#fff' },
   },
   legend: {
+    orient: 'vertical',
     right: 0,
-    top: 0,
+    top: 'middle',
     itemWidth: 16,
     itemHeight: 3,
-    textStyle: { color: '#708097', fontSize: 12 },
+    itemGap: 14,
+    textStyle: { color: '#708097', fontSize: 11 },
   },
   xAxis: {
     type: 'category',
@@ -915,9 +990,8 @@ const managerLineChartData = computed(() => {
   const dataMap: Record<string, number[]> = {}
   for (const s of LINE_SERIES_DEF) dataMap[s.key] = []
 
-  const taskSource = managerSelectedUser.value
-    ? directorRootTasks.value.filter(t => t.executorName === managerSelectedUser.value)
-    : directorRootTasks.value
+  // 负责人时间统计：统计上级下发给自己的事务
+  const taskSource = receivedTasks.value
 
   for (let d = 0; d < daysInMonth; d++) {
     const dateStr = base.add(d, 'day').format('YYYY-MM-DD')
@@ -958,7 +1032,7 @@ const managerLineChartData = computed(() => {
 })
 
 const managerLineOption = computed<EChartsOption>(() => ({
-  grid: { top: 36, right: 16, bottom: 6, left: 12, containLabel: true },
+  grid: { top: 10, right: 100, bottom: 6, left: 12, containLabel: true },
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(36, 50, 74, 0.92)',
@@ -966,11 +1040,13 @@ const managerLineOption = computed<EChartsOption>(() => ({
     textStyle: { color: '#fff' },
   },
   legend: {
+    orient: 'vertical',
     right: 0,
-    top: 0,
+    top: 'middle',
     itemWidth: 16,
     itemHeight: 3,
-    textStyle: { color: '#708097', fontSize: 12 },
+    itemGap: 14,
+    textStyle: { color: '#708097', fontSize: 11 },
   },
   xAxis: {
     type: 'category',
@@ -1190,7 +1266,7 @@ function getTaskStatusColor(task: Task): string {
   }
   if (status === 'rejected') return '#e06472'
   if (status === 'cancelled') return '#96a0af'
-  if (deadline && deadline < now) return '#de5a6a' // 逾期未完成
+  if (deadline && deadline < now) return '#8B5CF6' // 逾期未完成
   return '#5a8dee' // 待办
 }
 
@@ -1339,6 +1415,15 @@ onBeforeUnmount(() => {
   color: #22324a;
   margin-bottom: 12px;
   padding-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-group-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5a8dee;
 }
 
 .status-group__cards {
@@ -1373,7 +1458,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 14px 36px rgba(140, 161, 190, 0.12);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 6px;
 
   &::after {
     content: '';
@@ -1414,11 +1499,13 @@ onBeforeUnmount(() => {
 .status-note {
   font-size: 12px;
   color: #97a4b5;
+  white-space: pre-line;
+  line-height: 1.5;
 }
 
 .panel-middle-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
 }
@@ -1474,7 +1561,7 @@ onBeforeUnmount(() => {
 .line-month-selector {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -1483,6 +1570,47 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+.bar-panel__header {
+  padding: 0 0 4px;
+}
+
+.bar-header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: auto;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #22324a;
+    white-space: nowrap;
+  }
+}
+
+.bar-mode-switcher {
+  flex-shrink: 0;
+}
+
+.bar-header-sub {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-subtitle {
+  font-size: 12px;
+  color: #8ba0c2;
   flex-shrink: 0;
 }
 
@@ -1562,18 +1690,57 @@ onBeforeUnmount(() => {
 
 .activity-content {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 
-  p {
+  .activity-text {
     color: #24324a;
-    line-height: 1.6;
     font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
   }
 
-  span {
-    display: inline-block;
-    margin-top: 6px;
+  .activity-time {
     color: #95a3b6;
     font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+.activity-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pie-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-tab {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #8ba0c2;
+  background: #f0f4f8;
+  transition: all 0.2s;
+
+  &:hover {
+    color: #5a8dee;
+  }
+
+  &.active {
+    color: #fff;
+    background: #5a8dee;
   }
 }
 
@@ -1773,27 +1940,29 @@ onBeforeUnmount(() => {
 }
 
 .time-task {
-  border-left: 3px solid;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 6px;
   background: #f2f6fd;
-  padding: 4px 6px;
+  padding: 3px 6px;
+}
+
+.time-task-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .time-task-title {
-  font-size: 12px;
+  font-size: 11px;
   color: #24324a;
-  line-height: 1.25;
+  line-height: 1.3;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.time-task-meta {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #8a99ac;
-  line-height: 1.2;
 }
 
 .month-weekdays {
@@ -1829,6 +1998,7 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   background: #fbfcfe;
   border: 1px solid #edf1f6;
+  position: relative;
 
   &.other-month {
     background: #f5f7fa;
@@ -1849,9 +2019,10 @@ onBeforeUnmount(() => {
 }
 
 .month-cell-date {
-  font-size: 12px;
+  font-size: 13px;
   color: #607087;
   margin-bottom: 4px;
+  font-weight: 500;
 }
 
 .month-cell-tasks {
@@ -1877,7 +2048,7 @@ onBeforeUnmount(() => {
 }
 
 .month-task-text {
-  font-size: 10px;
+  font-size: 13px;
   color: #475669;
   white-space: nowrap;
   overflow: hidden;
@@ -1886,8 +2057,13 @@ onBeforeUnmount(() => {
 }
 
 .month-task-more {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 10px;
-  color: #8b98aa;
+  color: #5a8dee;
+  font-weight: 600;
 }
 
 .month-tip-row {
@@ -1965,22 +2141,28 @@ onBeforeUnmount(() => {
 }
 
 .quadrant-item {
-  padding: 8px 10px;
-  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
-  border-left: 3px solid;
+}
+
+.quadrant-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .quadrant-item-desc {
   font-size: 12px;
   color: #24324a;
   font-weight: 600;
-}
-
-.quadrant-item-meta {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #8997aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== 统一到系统页面风格（轻量卡片 + 统一间距） ===== */
@@ -2222,10 +2404,6 @@ onBeforeUnmount(() => {
   color: $text-primary;
 }
 
-.time-task-meta {
-  color: $text-secondary;
-}
-
 .month-cell {
   border-radius: $radius-sm;
   background: $bg-card;
@@ -2281,10 +2459,6 @@ onBeforeUnmount(() => {
 
 .quadrant-item-desc {
   color: $text-primary;
-}
-
-.quadrant-item-meta {
-  color: $text-secondary;
 }
 
 @media (max-width: 1400px) {

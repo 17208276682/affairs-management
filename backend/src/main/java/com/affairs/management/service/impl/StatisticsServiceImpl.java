@@ -156,41 +156,64 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public List<ActivityVO> getRecentActivities(String userId, String role, List<String> managedDeptIds) {
+        if ("manager".equals(role)) {
+            return getManagerActivities(userId);
+        }
+
         boolean checkAssigner;
         boolean checkExecutor;
 
         if ("director".equals(role) || "ceo".equals(role) || "admin".equals(role)) {
-            // 总经办：只看自己下发的事务的动态
             checkAssigner = true;
             checkExecutor = false;
-        } else if ("manager".equals(role)) {
-            // 负责人：看自己下发的 + 别人给自己的
-            checkAssigner = true;
-            checkExecutor = true;
         } else {
-            // 普通员工：只看别人给自己的事务动态
             checkAssigner = false;
             checkExecutor = true;
         }
 
         List<TaskProcessRecord> records = recordMapper.selectRecentByRelation(20, userId, checkAssigner, checkExecutor);
 
-        return records.stream().map(r -> {
-            ActivityVO vo = new ActivityVO();
-            vo.setId(r.getId());
-            vo.setType(r.getAction());
-            vo.setContent(r.getContent());
-            if (r.getCreatedAt() != null) {
-                vo.setTime(r.getCreatedAt().format(DTF));
-            }
+        return records.stream().map(r -> buildActivityVO(r, null)).collect(Collectors.toList());
+    }
 
-            // 拼接操作人信息
-            User operator = userMapper.selectById(r.getOperatorId());
-            if (operator != null) {
-                vo.setContent(operator.getName() + " " + r.getContent());
-            }
-            return vo;
-        }).collect(Collectors.toList());
+    /**
+     * 负责人活动：分别查询上级事务和部门事务，打上分类标签后合并
+     */
+    private List<ActivityVO> getManagerActivities(String userId) {
+        // 部门事务：我是下发人
+        List<TaskProcessRecord> deptRecords = recordMapper.selectRecentByRelation(20, userId, true, false);
+        // 上级事务：我是执行人
+        List<TaskProcessRecord> superiorRecords = recordMapper.selectRecentByRelation(20, userId, false, true);
+
+        Map<String, ActivityVO> merged = new LinkedHashMap<>();
+        for (TaskProcessRecord r : deptRecords) {
+            merged.put(r.getId(), buildActivityVO(r, "dept"));
+        }
+        for (TaskProcessRecord r : superiorRecords) {
+            // 如果已存在（同时关联上级和部门），优先标记为 superior
+            merged.put(r.getId(), buildActivityVO(r, "superior"));
+        }
+
+        return merged.values().stream()
+                .sorted((a, b) -> b.getTime().compareTo(a.getTime()))
+                .limit(20)
+                .collect(Collectors.toList());
+    }
+
+    private ActivityVO buildActivityVO(TaskProcessRecord r, String category) {
+        ActivityVO vo = new ActivityVO();
+        vo.setId(r.getId());
+        vo.setType(r.getAction());
+        vo.setContent(r.getContent());
+        vo.setCategory(category);
+        if (r.getCreatedAt() != null) {
+            vo.setTime(r.getCreatedAt().format(DTF));
+        }
+        User operator = userMapper.selectById(r.getOperatorId());
+        if (operator != null) {
+            vo.setContent(operator.getName() + " " + r.getContent());
+        }
+        return vo;
     }
 
     /**

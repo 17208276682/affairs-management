@@ -923,7 +923,7 @@ function getDisplayStatus(status: string): { label: string; color: string; bgCol
     return { label: '不通过', color: '#DC2626', bgColor: '#FEF2F2' }
   }
   if (status === 'overdue') {
-    return { label: '已逾期', color: '#DC2626', bgColor: '#FEF2F2' }
+    return { label: '已逾期', color: '#8B5CF6', bgColor: '#F5F3FF' }
   }
   if (status === 'cancelled') {
     return { label: '已作废', color: '#9CA3AF', bgColor: '#F3F4F6' }
@@ -1106,19 +1106,24 @@ const childHasSubmitted = computed(() => {
   return allSubmissions.value.some(s => childIds.includes(s.taskId))
 })
 
-/** 驳回原因文本（从流程记录中提取） */
+/** 驳回原因文本（从流程记录中提取，只保留纯理由） */
 const rejectReasonText = computed(() => {
   const records = taskStore.currentRecords
   const rejectRecord = [...records].reverse().find(r => r.action === 'reject')
   const content = rejectRecord?.content || ''
-  return content.replace(/^驳回原因[:：]\s*/, '')
+  // 后端格式: "驳回，原因：xxx，评语：xxx" — 提取原因部分
+  const m = content.match(/原因[:：]\s*([^，,]+)/)
+  return m ? m[1].trim() : content.replace(/^驳回[，,]?\s*/, '').trim()
 })
 
-/** 作废原因文本（从流程记录中提取） */
+/** 作废原因文本（从流程记录中提取，只保留纯理由） */
 const cancelReasonText = computed(() => {
   const records = taskStore.currentRecords
   const cancelRecord = [...records].reverse().find(r => r.action === 'cancel')
-  return cancelRecord?.content || ''
+  const content = cancelRecord?.content || ''
+  // 后端格式: "取消事务，原因：xxx" — 提取原因部分
+  const m = content.match(/原因[:：]\s*(.+)$/)
+  return m ? m[1].trim() : content.replace(/^取消事务[，,]?\s*/, '').trim()
 })
 
 /** 任务终结状态文本 */

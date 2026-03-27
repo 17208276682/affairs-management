@@ -97,16 +97,7 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item
-                  v-for="(ctx, idx) in userStore.roleContexts"
-                  :key="`switch-${idx}`"
-                  :command="`role:${idx}`"
-                >
-                  <el-icon><Switch /></el-icon>
-                  {{ ctx.label }}
-                  <el-tag v-if="ctx.role === userStore.currentRole && ctx.deptId === userStore.currentDeptId" size="small" type="success" style="margin-left: 8px;">当前</el-tag>
-                </el-dropdown-item>
-                <el-dropdown-item :divided="userStore.roleContexts.length > 1" command="profile">
+                <el-dropdown-item command="profile">
                   <el-icon><UserFilled /></el-icon>个人中心
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
@@ -153,35 +144,12 @@ const currentRouteTitle = computed(() => {
 })
 
 const isOrgPage = computed(() => route.path.startsWith('/org/'))
-const displayUserName = computed(() => userStore.currentRole === 'admin' ? '用户' : (userStore.userInfo?.name || ''))
+const displayUserName = computed(() => userStore.currentRole === 'admin' ? '管理员' : (userStore.userInfo?.name || ''))
 const displayUserRole = computed(() => userStore.currentRole === 'admin' ? '' : userStore.displayRole)
-const viewRenderKey = computed(() => `${route.fullPath}|${userStore.currentRole}`)
+const viewRenderKey = computed(() => route.fullPath)
 
 function handleUserCommand(cmd: string) {
-  if (cmd.startsWith('role:')) {
-    const idx = parseInt(cmd.replace('role:', ''), 10)
-    const ctx = userStore.roleContexts[idx]
-    if (!ctx) return
-    userStore.switchRole(ctx)
-
-    // 角色切换后跳转到对应入口，确保按新角色重新加载页面数据
-    if (ctx.role === 'admin') {
-      router.push('/org/dept')
-      return
-    }
-    if (ctx.role === 'staff') {
-      router.push('/task/list/todo')
-      return
-    }
-    if (ctx.role === 'manager') {
-      router.push('/dashboard')
-      return
-    }
-    if (ctx.role === 'ceo' || ctx.role === 'director') {
-      router.push('/dashboard')
-      return
-    }
-  } else if (cmd === 'profile') {
+  if (cmd === 'profile') {
     router.push('/profile')
   } else if (cmd === 'logout') {
     userStore.logout()

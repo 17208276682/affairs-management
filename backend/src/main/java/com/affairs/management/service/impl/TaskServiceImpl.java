@@ -291,7 +291,8 @@ public class TaskServiceImpl implements TaskService {
                 request.getComment() != null ? request.getComment() : "审核通过");
 
         // 级联通过子任务
-        cascadeStatusChange(taskId, "approved");
+        cascadeStatusChange(taskId, "approved", currentUserId, "approve",
+                request.getComment() != null ? request.getComment() : "审核通过");
 
         // 通知执行人
         notificationService.createNotification(
@@ -324,7 +325,7 @@ public class TaskServiceImpl implements TaskService {
         createRecord(taskId, currentUserId, "reject", content);
 
         // 级联驳回子任务
-        cascadeStatusChange(taskId, "rejected");
+        cascadeStatusChange(taskId, "rejected", currentUserId, "reject", content);
 
         // 通知执行人
         notificationService.createNotification(
@@ -413,7 +414,7 @@ public class TaskServiceImpl implements TaskService {
         createRecord(taskId, currentUserId, "cancel", content);
 
         // 级联取消子任务
-        cascadeStatusChange(taskId, "cancelled");
+        cascadeStatusChange(taskId, "cancelled", currentUserId, "cancel", content);
 
         return toTaskVO(task);
     }
@@ -449,10 +450,14 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void cascadeStatusChange(String parentTaskId, String newStatus) {
+    private void cascadeStatusChange(String parentTaskId, String newStatus, String operatorId, String action, String content) {
         List<String> descendantIds = taskMapper.selectAllDescendantIds(parentTaskId);
         if (descendantIds != null && !descendantIds.isEmpty()) {
             taskMapper.batchUpdateStatus(descendantIds, newStatus);
+            // 在每个子孙任务上创建审核记录，确保下级执行人能看到最终审核结果
+            for (String childId : descendantIds) {
+                createRecord(childId, operatorId, action, content);
+            }
         }
     }
 
@@ -480,41 +485,35 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "当前角色未绑定所属部门");
         }
 
-        // 获取下发人兼任负责人的部门（通过 user_managed_departments）
+        // 不能下发给总经办（ceo/director）
+        if ("ceo".equals(executor.getRole()) || "director".equals(executor.getRole())) {
+            throw new BusinessException(ErrorCode.TASK_EXECUTOR_INVALID, "不能给总经办人员下发任务");
+        }
+
         List<String> assignerManagedDeptIds = userManagedDeptMapper.selectDeptIdsByUserId(assigner.getId());
         boolean valid = false;
 
-        // 路径1: 作为 ceo/director，下发给下一级部门的负责人（排除自己兼任负责人的部门）
         if ("ceo".equals(currentRole) || "director".equals(currentRole)) {
+            // 路径1: 作为 ceo/director，下发给下一级部门的负责人
             List<Department> childDepts = deptMapper.selectChildren(currentDeptId);
             for (Department childDept : childDepts) {
-                // 自己兼任负责人的部门不能从此路径下发
-                if (assignerManagedDeptIds.contains(childDept.getId())) {
-                    continue;
-                }
                 if (isDeptHead(executor, childDept.getId())) {
                     valid = true;
                     break;
                 }
             }
-        }
 
-        // 路径2: 作为兼任部门负责人，下发给下一级（仅当当前角色为 manager 时）
-        if (!valid && "manager".equals(currentRole)) {
-            for (String managedDeptId : assignerManagedDeptIds) {
-                Department managedDept = deptMapper.selectById(managedDeptId);
-                if (managedDept == null) continue;
-                if (managedDept.getLevel() == null || managedDept.getLevel() < 1) continue;
-                if (managedDeptId.equals(currentDeptId)) continue;
-                if (isValidNextLevelDispatch(assigner, executor, managedDeptId)) {
-                    valid = true;
-                    break;
+            // 路径2: 作为兼任部门负责人，下发给管理部门的下级
+            if (!valid) {
+                for (String managedDeptId : assignerManagedDeptIds) {
+                    if (isValidNextLevelDispatch(assigner, executor, managedDeptId)) {
+                        valid = true;
+                        break;
+                    }
                 }
             }
-        }
-
-        // 路径3: 作为普通 manager，根据当前部门下发
-        if (!valid && "manager".equals(currentRole)) {
+        } else if ("manager".equals(currentRole)) {
+            // 路径3: 作为 manager，下发给本部门下级
             valid = isValidNextLevelDispatch(assigner, executor, currentDeptId);
         }
 

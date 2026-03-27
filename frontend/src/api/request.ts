@@ -5,7 +5,6 @@ import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from '@/utils/auth'
-import { useUserStore } from '@/stores'
 import type { ApiResponse } from '@/types'
 
 const service = axios.create({
@@ -19,15 +18,6 @@ service.interceptors.request.use(
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-    }
-
-    // 多角色账号：透传当前激活角色和部门，后端按该角色返回数据与权限
-    const userStore = useUserStore()
-    if (userStore.currentRole) {
-      config.headers['X-Active-Role'] = userStore.currentRole
-    }
-    if (userStore.activeDeptId) {
-      config.headers['X-Active-Dept'] = userStore.activeDeptId
     }
     return config
   },

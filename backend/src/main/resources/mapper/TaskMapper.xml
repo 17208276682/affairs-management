@@ -67,33 +67,6 @@
             <!-- assigned: 我下达的（根任务） -->
             <if test="type == 'assigned'">
                 AND t.assigner_id = #{currentUserId}
-                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
-                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
-                <if test="role == 'director' or role == 'ceo'">
-                    AND EXISTS (
-                        SELECT 1 FROM users ue
-                        WHERE ue.id = t.executor_id
-                          AND (
-                              ue.role IN ('director', 'manager')
-                              OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
-                          )
-                    )
-                </if>
-                <if test="role == 'manager'">
-                    AND EXISTS (
-                        SELECT 1 FROM users ue
-                        WHERE ue.id = t.executor_id
-                                                    AND (
-                                                        (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
-                                                        OR
-                                                        (ue.role = 'manager' AND EXISTS (
-                                                                SELECT 1 FROM departments dc
-                                                                WHERE dc.id = ue.dept_id
-                                                                    AND dc.parent_id = #{currentDeptId}
-                                                        ))
-                                                    )
-                    )
-                </if>
                 AND t.parent_task_id IS NULL
             </if>
 
@@ -101,49 +74,23 @@
             <if test="type == 'todo'">
                 <choose>
                     <when test="role == 'director' or role == 'ceo'">
+                        <!-- 总经办：只有审核待办（下属提交的任务） -->
                         AND t.assigner_id = #{currentUserId}
-                        AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
-                        AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
                         AND t.status = 'submitted'
                         AND t.parent_task_id IS NULL
-                        AND EXISTS (
-                            SELECT 1 FROM users ue
-                            WHERE ue.id = t.executor_id
-                              AND (
-                                  ue.role IN ('director', 'manager')
-                                  OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
-                              )
-                        )
                     </when>
                     <when test="role == 'manager'">
                         AND (
                             (t.executor_id = #{currentUserId}
-                             AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
                              AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue'))
                             OR
                             (t.assigner_id = #{currentUserId}
-                             AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
-                             AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
                              AND t.status = 'submitted'
-                                                         AND EXISTS (
-                                                                SELECT 1 FROM users ue
-                                                                WHERE ue.id = t.executor_id
-                                                                    AND (
-                                                                        (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
-                                                                        OR
-                                                                        (ue.role = 'manager' AND EXISTS (
-                                                                                SELECT 1 FROM departments dc
-                                                                                WHERE dc.id = ue.dept_id
-                                                                                    AND dc.parent_id = #{currentDeptId}
-                                                                        ))
-                                                                    )
-                                                         )
                              AND t.parent_task_id IS NULL)
                         )
                     </when>
                     <otherwise>
                         AND t.executor_id = #{currentUserId}
-                        AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
                         AND t.status IN ('pending', 'accepted', 'in_progress', 'overdue')
                     </otherwise>
                 </choose>
@@ -152,70 +99,25 @@
             <!-- scope: 事务列表（按权限范围） -->
             <if test="type == 'scope'">
                 <choose>
+                    <when test="role == 'admin'">
+                        <!-- 管理员：查看所有根任务 -->
+                        AND t.parent_task_id IS NULL
+                    </when>
                     <when test="role == 'director' or role == 'ceo'">
-                        AND (
-                            (
-                                t.assigner_id = #{currentUserId}
-                                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
-                                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
-                                AND EXISTS (
-                                    SELECT 1 FROM users ue
-                                    WHERE ue.id = t.executor_id
-                                      AND (
-                                          ue.role IN ('director', 'manager')
-                                          OR EXISTS (SELECT 1 FROM user_managed_departments umd WHERE umd.user_id = ue.id)
-                                      )
-                                )
-                            )
-                            <if test="managedUserIds != null and managedUserIds.size() > 0">
-                                OR (
-                                t.assigner_id IN
-                                <foreach collection="managedUserIds" item="uid" open="(" separator="," close=")">
-                                    #{uid}
-                                </foreach>
-                                AND t.assigner_id != #{currentUserId}
-                                )
-                            </if>
-                        )
+                        <!-- 总经办：自己下达的所有根任务 -->
+                        AND t.assigner_id = #{currentUserId}
                         AND t.parent_task_id IS NULL
                     </when>
                     <when test="role == 'manager'">
                         AND (
-                            (
-                                t.assigner_id = #{currentUserId}
-                                AND (t.assigner_role IS NULL OR t.assigner_role = #{role})
-                                AND (t.assigner_dept_id IS NULL OR t.assigner_dept_id = #{currentDeptId})
-                                AND t.parent_task_id IS NULL
-                                AND EXISTS (
-                                    SELECT 1 FROM users ue
-                                    WHERE ue.id = t.executor_id
-                                                                            AND (
-                                                                                (ue.role = 'staff' AND ue.dept_id = #{currentDeptId})
-                                                                                OR
-                                                                                (ue.role = 'manager' AND EXISTS (
-                                                                                        SELECT 1 FROM departments dc
-                                                                                        WHERE dc.id = ue.dept_id
-                                                                                            AND dc.parent_id = #{currentDeptId}
-                                                                                ))
-                                                                            )
-                                )
-                            )
-                            <if test="managedUserIds != null and managedUserIds.size() > 0">
-                                OR (t.assigner_id IN
-                                <foreach collection="managedUserIds" item="uid" open="(" separator="," close=")">
-                                    #{uid}
-                                </foreach>
-                                AND t.parent_task_id IS NULL)
-                            </if>
-                            OR (
-                                t.executor_id = #{currentUserId}
-                                AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
-                            )
+                            (t.assigner_id = #{currentUserId}
+                             AND t.parent_task_id IS NULL)
+                            OR
+                            (t.executor_id = #{currentUserId})
                         )
                     </when>
                     <otherwise>
                         AND t.executor_id = #{currentUserId}
-                        AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
                     </otherwise>
                 </choose>
             </if>
@@ -223,7 +125,6 @@
             <!-- received: 我执行的 -->
             <if test="type == 'received'">
                 AND t.executor_id = #{currentUserId}
-                AND (t.executor_context_dept_id IS NULL OR t.executor_context_dept_id = #{currentDeptId})
             </if>
 
             <!-- all: 全部（仅总经办/经理） -->
@@ -319,7 +220,7 @@
             SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejectedTasks,
             SUM(CASE WHEN status = 'overdue'
                       OR (completion_deadline &lt; NOW()
-                          AND status NOT IN ('approved', 'completed', 'cancelled'))
+                          AND status NOT IN ('approved', 'completed', 'cancelled', 'rejected'))
                  THEN 1 ELSE 0 END) AS overdueTasks,
             SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelledTasks,
             AVG(CASE WHEN response_time IS NOT NULL
@@ -338,12 +239,13 @@
             SUM(CASE WHEN status NOT IN ('approved', 'completed', 'cancelled', 'rejected')
                           AND (completion_deadline IS NULL OR completion_deadline >= NOW())
                  THEN 1 ELSE 0 END) AS todoTasks,
-            SUM(CASE WHEN status NOT IN ('approved', 'completed', 'cancelled')
+            SUM(CASE WHEN status NOT IN ('approved', 'completed', 'cancelled', 'rejected')
                           AND completion_deadline IS NOT NULL AND completion_deadline &lt; NOW()
                  THEN 1 ELSE 0 END) AS overdueUnfinished,
             SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submittedTasks
         FROM tasks
         <where>
+            AND parent_task_id IS NULL
             <if test="userIds != null and userIds.size() > 0">
                 AND (assigner_id IN
                 <foreach collection="userIds" item="uid" open="(" separator="," close=")">#{uid}</foreach>

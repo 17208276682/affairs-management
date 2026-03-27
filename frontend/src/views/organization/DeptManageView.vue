@@ -2,7 +2,6 @@
   <div class="dept-manage">
     <div class="page-header">
       <h3>组织管理</h3>
-      <el-tag type="info" effect="plain">左侧树形架构，右侧部门信息</el-tag>
     </div>
 
     <el-row :gutter="16" class="content-row" v-loading="loading">
