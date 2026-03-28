@@ -1,9 +1,5 @@
 <template>
   <div class="dept-manage">
-    <div class="page-header">
-      <h3>组织管理</h3>
-    </div>
-
     <el-row :gutter="16" class="content-row" v-loading="loading">
       <el-col :span="7">
         <el-card class="tree-panel">
@@ -80,13 +76,13 @@
           <el-divider />
           <div class="child-title">本部门成员</div>
           <div class="table-scroll">
-            <el-table :data="deptMembers" size="small" stripe max-height="260" class="inner-table">
-              <el-table-column label="姓名" prop="name" min-width="120" />
-              <el-table-column label="部门" prop="deptName" min-width="160" />
+            <el-table :data="sortedDeptMembers" size="small" stripe max-height="260" class="inner-table" @sort-change="handleMemberSortChange">
+              <el-table-column label="姓名" prop="name" min-width="120" sortable="custom" />
+              <el-table-column label="部门" prop="deptName" min-width="160" sortable="custom" />
               <el-table-column label="职位" prop="position" min-width="140" />
               <el-table-column label="手机号" prop="phone" min-width="140" />
               <el-table-column label="邮箱" prop="email" min-width="220" />
-              <el-table-column label="角色" min-width="220" align="center">
+              <el-table-column label="角色" min-width="220" align="center" prop="role" sortable="custom">
                 <template #default="{ row }">
                   <div class="role-lines">
                     <div v-for="tag in getRoleTags(row)" :key="tag.key" class="role-line">
@@ -206,6 +202,33 @@ const saving = ref(false)
 const formRef = ref<FormInstance>()
 const selectedDeptId = ref('')
 const deptMembers = ref<User[]>([])
+const memberSortProp = ref('')
+const memberSortOrder = ref<'ascending' | 'descending' | null>(null)
+
+const rolePriority = (role: string) => {
+  if (role === 'ceo') return 0
+  if (role === 'director') return 1
+  if (role === 'manager') return 2
+  return 3
+}
+
+const sortedDeptMembers = computed(() => {
+  // 默认按角色排序：总经理 > 副总经理 > 负责人 > 普通员工
+  const defaultSorted = [...deptMembers.value].sort((a, b) => rolePriority(a.role) - rolePriority(b.role))
+  if (!memberSortProp.value || !memberSortOrder.value) return defaultSorted
+  const dir = memberSortOrder.value === 'ascending' ? 1 : -1
+  return [...defaultSorted].sort((a, b) => {
+    if (memberSortProp.value === 'name') return (a.name || '').localeCompare(b.name || '', 'zh-CN') * dir
+    if (memberSortProp.value === 'deptName') return (a.deptName || '').localeCompare(b.deptName || '', 'zh-CN') * dir
+    if (memberSortProp.value === 'role') return (rolePriority(a.role) - rolePriority(b.role)) * dir
+    return 0
+  })
+})
+
+function handleMemberSortChange({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }) {
+  memberSortProp.value = prop || ''
+  memberSortOrder.value = order
+}
 const showMemberForm = ref(false)
 const memberSaving = ref(false)
 const memberFormRef = ref<FormInstance>()
@@ -256,6 +279,10 @@ const parentDeptName = computed(() => {
 })
 const childrenDepts = computed(() => {
   if (!selectedDept.value) return []
+  // 总经办（顶级）：显示所有下级组织（递归）
+  if (selectedDept.value.level === 0) {
+    return orgStore.deptList.filter(d => d.id !== selectedDept.value!.id)
+  }
   return orgStore.deptList.filter(d => d.parentId === selectedDept.value!.id)
 })
 
@@ -591,11 +618,7 @@ onMounted(async () => {
   overflow: hidden;
 
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: $spacing-sm;
-    h3 { font-size: $font-size-xl; font-weight: 600; margin: 0; }
+    display: none;
   }
 }
 
@@ -696,5 +719,41 @@ onMounted(async () => {
 :deep(.no-collapse-tree .el-tree-node__expand-icon) {
   visibility: hidden;
   pointer-events: none;
+}
+
+/* 树结构竖线 */
+:deep(.no-collapse-tree) {
+  .el-tree-node {
+    position: relative;
+  }
+
+  /* 子节点前的竖线 + 横线 */
+  .el-tree-node__children > .el-tree-node::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    height: 100%;
+    border-left: 1px solid #dcdfe6;
+  }
+
+  .el-tree-node__children > .el-tree-node::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 20px;
+    width: 12px;
+    border-top: 1px solid #dcdfe6;
+  }
+
+  /* 最后一个子节点竖线截断 */
+  .el-tree-node__children > .el-tree-node:last-child::before {
+    height: 20px;
+  }
+
+  /* 父节点的子节点容器距离 */
+  .el-tree-node__children {
+    padding-left: 12px;
+  }
 }
 </style>

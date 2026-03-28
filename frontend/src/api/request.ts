@@ -29,18 +29,25 @@ service.interceptors.response.use(
   (response) => {
     const res = response.data as ApiResponse
     if (res.code !== 200) {
-      ElMessage.error(res.message || '请求失败')
       if (res.code === 401) {
         removeToken()
-        // 延迟跳转避免循环
+        ElMessage.warning('您的账号已在其他设备登录，当前会话已失效')
         setTimeout(() => { window.location.hash = '#/login' }, 100)
+      } else {
+        ElMessage.error(res.message || '请求失败')
       }
       return Promise.reject(new Error(res.message || '请求失败'))
     }
     return res as any
   },
   (error) => {
-    ElMessage.error(error.message || '网络异常')
+    if (error.response?.status === 401) {
+      removeToken()
+      ElMessage.warning('您的账号已在其他设备登录，当前会话已失效')
+      setTimeout(() => { window.location.hash = '#/login' }, 100)
+    } else {
+      ElMessage.error(error.message || '网络异常')
+    }
     return Promise.reject(error)
   }
 )

@@ -79,6 +79,20 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/statistics/StatisticsView.vue'),
         meta: { title: '事务统计', icon: 'DataAnalysis', roles: ['admin', 'ceo'] },
       },
+      // --- 报表导出 ---
+      {
+        path: 'report',
+        name: 'Report',
+        component: () => import('@/views/report/ReportView.vue'),
+        meta: { title: '报表导出', icon: 'Document', roles: ['admin'] },
+      },
+      // --- 系统设置 ---
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('@/views/settings/SettingsView.vue'),
+        meta: { title: '系统设置', icon: 'Setting', roles: ['admin'] },
+      },
       // --- 个人中心 ---
       {
         path: 'profile',

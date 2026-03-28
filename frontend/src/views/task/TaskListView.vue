@@ -1,10 +1,5 @@
 <template>
   <div class="task-list">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <h3>{{ pageTitle }}</h3>
-    </div>
-
     <!-- 筛选栏 -->
     <div class="filter-bar">
       <div class="filter-left">
@@ -13,8 +8,8 @@
           placeholder="搜索事务描述"
           prefix-icon="Search"
           clearable
-          class="filter-keyword"
-          @change="handleSearch"
+          class="filter-select"
+          @keyup.enter="handleSearch"
         />
         <el-select
           v-model="statusFilter"
@@ -42,6 +37,8 @@
           <el-option label="不重要紧急" value="B" />
           <el-option label="不重要不紧急" value="D" />
         </el-select>
+        <el-button type="primary" @click="handleSearch">搜索</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </div>
       <div class="filter-right">
         <el-button v-if="canCreateTask" class="create-btn" type="primary" @click="showCreatePanel">
@@ -63,25 +60,25 @@
             @row-click="handleRowClick"
             @sort-change="handleSortChange"
           >
-            <el-table-column label="事务级别" width="170" align="center" prop="level" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
+            <el-table-column label="事务级别" width="170" prop="level" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
               <template #default="{ row }">
                 <div class="level-cell">
-                  <span class="level-text">{{ TASK_LEVEL_MAP[row.level as TaskLevel]?.label }}</span>
                   <div class="level-badge-sm" :style="{ background: TASK_LEVEL_MAP[row.level as TaskLevel]?.color }">
                     {{ row.level }}
                   </div>
+                  <span class="level-text">{{ TASK_LEVEL_MAP[row.level as TaskLevel]?.label }}</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="事务描述" min-width="160" show-overflow-tooltip>
+            <el-table-column label="事务描述" min-width="160" show-overflow-tooltip prop="description" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
               <template #default="{ row }">
                 {{ row.description?.substring(0, 20) || row.title?.substring(0, 20) || '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="下达人" width="80">
+            <el-table-column label="下达人" width="90" prop="assignerName" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
               <template #default="{ row }">{{ row.assignerName }}</template>
             </el-table-column>
-            <el-table-column label="执行人" width="80">
+            <el-table-column label="执行人" width="90" prop="executorName" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
               <template #default="{ row }">{{ row.executorName }}</template>
             </el-table-column>
             <el-table-column label="状态" width="90" align="center" prop="status" :sortable="enableColumnSort ? 'custom' : false" header-class-name="sortable-right-header">
@@ -101,11 +98,6 @@
                 <span :class="{ 'text-danger': getTimeRemaining(row.completionDeadline).isOverdue }">
                   {{ formatDateTime(row.completionDeadline) }}
                 </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="70" align="center">
-              <template #default="{ row }">
-                <el-button link type="primary" @click.stop="showDetail(row)">详情</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -622,7 +614,7 @@
         </template>
         <template v-else-if="panelMode !== 'create'">
           <el-card class="detail-panel-card empty-panel">
-            <el-empty description="点击操作列「详情」查看事务详情" :image-size="80" />
+            <el-empty description="点击任意事务行查看详情" :image-size="80" />
           </el-card>
         </template>
       </div>
@@ -866,8 +858,8 @@ function setCreatePresetDeadline(value: number, unit: 'minute' | 'hour' | 'day' 
 const isMyAssigned = computed(() => currentType.value === 'assigned')
 const isMyTodo = computed(() => currentType.value === 'todo')
 const isScopeMode = computed(() => currentType.value === 'scope')
-const enableColumnSort = computed(() => isScopeMode.value || isMyAssigned.value)
-const sortState = ref<{ prop: '' | 'level' | 'status' | 'completionDeadline'; order: '' | 'ascending' | 'descending' }>({
+const enableColumnSort = computed(() => isScopeMode.value || isMyAssigned.value || isMyTodo.value)
+const sortState = ref<{ prop: '' | 'level' | 'status' | 'completionDeadline' | 'description' | 'assignerName' | 'executorName'; order: '' | 'ascending' | 'descending' }>({
   prop: '',
   order: '',
 })
@@ -887,6 +879,18 @@ const sortedTaskList = computed(() => {
 
     if (sortState.value.prop === 'status') {
       return (statusSortValue(a.status) - statusSortValue(b.status)) * direction
+    }
+
+    if (sortState.value.prop === 'description') {
+      return (a.description || '').localeCompare(b.description || '', 'zh') * direction
+    }
+
+    if (sortState.value.prop === 'assignerName') {
+      return (a.assignerName || '').localeCompare(b.assignerName || '', 'zh') * direction
+    }
+
+    if (sortState.value.prop === 'executorName') {
+      return (a.executorName || '').localeCompare(b.executorName || '', 'zh') * direction
     }
 
     const ta = new Date(a.completionDeadline).getTime()
@@ -1446,18 +1450,27 @@ function handleSearch() {
   })
 }
 
+function handleReset() {
+  keyword.value = ''
+  statusFilter.value = ''
+  levelFilter.value = ''
+  taskStore.listParams.page = 1
+  handleSearch()
+}
+
 function handleSortChange({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }) {
   if (!enableColumnSort.value || !prop || !order) {
     sortState.value = { prop: '', order: '' }
     return
   }
 
-  if (prop !== 'level' && prop !== 'status' && prop !== 'completionDeadline') {
+  const allowedProps = ['level', 'status', 'completionDeadline', 'description', 'assignerName', 'executorName']
+  if (!allowedProps.includes(prop)) {
     sortState.value = { prop: '', order: '' }
     return
   }
 
-  sortState.value = { prop, order }
+  sortState.value = { prop: prop as any, order }
 }
 
 function statusSortValue(status: Task['status']) {
@@ -1586,19 +1599,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-
-  .page-header {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    margin-bottom: $spacing-sm;
-
-    h3 {
-      font-size: $font-size-xl;
-      font-weight: 600;
-      margin: 0;
-    }
-  }
 }
 
 .filter-bar {
@@ -1609,14 +1609,12 @@ onMounted(async () => {
   gap: $spacing-md;
 
   .filter-left {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 140px 140px;
+    display: flex;
     gap: $spacing-sm;
-    align-items: end;
+    align-items: flex-end;
 
-    .filter-keyword,
     .filter-select {
-      width: 100%;
+      flex: 1;
       min-width: 0;
     }
   }
@@ -1625,6 +1623,7 @@ onMounted(async () => {
     display: flex;
     align-items: flex-end;
     justify-content: flex-end;
+    gap: $spacing-sm;
 
     .create-btn {
       height: 32px;
@@ -1705,31 +1704,7 @@ onMounted(async () => {
   }
 
   :deep(.sortable-right-header .cell) {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    white-space: nowrap;
-    padding-right: 14px;
-  }
-
-  :deep(.sortable-right-header .caret-wrapper) {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: auto;
-    height: auto;
-    margin-left: 0;
-  }
-
-  :deep(.sortable-right-header .sort-caret.ascending) {
-    top: 0;
-  }
-
-  :deep(.sortable-right-header .sort-caret.descending) {
-    bottom: 0;
+    /* 由非 scoped 全局样式块覆盖，此处无需重复定义 */
   }
 }
 
@@ -2258,5 +2233,40 @@ onMounted(async () => {
   &.active { background: $primary-light; }
   .person-name { font-weight: 500; font-size: $font-size-sm; }
   .person-dept { font-size: $font-size-xs; color: $text-secondary; }
+}
+</style>
+
+<!-- 全局样式（不加 scoped），覆盖 Element Plus 2.x 排序列头 flex-direction: column 的默认行为 -->
+<style lang="scss">
+.task-list .sortable-right-header .cell {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center;
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  padding-inline: 6px !important;
+  gap: 2px;
+  line-height: normal;
+}
+
+.task-list .sortable-right-header .caret-wrapper {
+  height: auto !important;
+  flex-shrink: 0;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  position: relative;
+}
+
+.task-list .sortable-right-header .sort-caret.ascending {
+  top: -4px;
+  position: relative;
+}
+
+.task-list .sortable-right-header .sort-caret.descending {
+  bottom: -3px;
+  position: relative;
 }
 </style>

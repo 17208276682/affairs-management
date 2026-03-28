@@ -1,20 +1,21 @@
 <template>
   <div class="statistics-page" v-loading="loading">
-    <!-- 顶部：标题 + 导出 -->
-    <div class="page-header">
-      <h4 class="section-title">事务状态</h4>
-    </div>
-
     <!-- 1. 事务状态卡片 -->
     <section class="section-status">
         <div class="status-cards">
           <div class="stat-card stat-card--primary" :style="{ '--card-color': '#4F6EF7' }">
-            <span class="stat-card__left">下达事务数：<strong>{{ totalAssigned }}</strong></span>
-            <span class="stat-card__right">占比：100%</span>
+            <span class="stat-card__label">下达事务数</span>
+            <div class="stat-card__body">
+              <span class="stat-card__num">{{ padNum(totalAssigned) }}</span>
+              <span class="stat-card__pct">100%</span>
+            </div>
           </div>
           <div v-for="card in statusCards" :key="card.label" class="stat-card" :style="{ '--card-color': card.color }">
-            <span class="stat-card__left">{{ card.label }}：<strong>{{ card.value }}</strong></span>
-            <span class="stat-card__right">占比：{{ card.pct }}</span>
+            <span class="stat-card__label">{{ card.label }}</span>
+            <div class="stat-card__body">
+              <span class="stat-card__num">{{ padNum(card.value) }}</span>
+              <span class="stat-card__pct">{{ card.pct }}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -28,10 +29,14 @@
             <div class="urgency-card__top">
               <span class="urgency-card__level">{{ item.label }}</span>
               <div class="urgency-card__stats">
-                <span>下达 <strong>{{ item.assigned }}</strong></span>
-                <span>完成 <strong>{{ item.completed }}</strong></span>
-                <span>未通过 <strong>{{ item.failedReview }}</strong></span>
-                <span>待办 <strong>{{ item.todo }}</strong></span>
+                <div class="urgency-card__stats-row">
+                  <span class="urgency-card__stat-item">下达 <strong>{{ padNum(item.assigned) }}</strong></span>
+                  <span class="urgency-card__stat-item">完成 <strong>{{ padNum(item.completed) }}</strong></span>
+                </div>
+                <div class="urgency-card__stats-row">
+                  <span class="urgency-card__stat-item">未通过 <strong>{{ padNum(item.failedReview) }}</strong></span>
+                  <span class="urgency-card__stat-item">待办 <strong>{{ padNum(item.todo) }}</strong></span>
+                </div>
               </div>
             </div>
             <div class="urgency-card__bottom">
@@ -68,7 +73,7 @@
       <section class="section-time-charts-row">
         <div class="time-chart-col">
           <div class="section-time-header">
-            <h4 class="section-title">每日事务</h4>
+            <h4 class="section-title">按日统计</h4>
             <div class="line-month-selector">
               <el-button size="small" :type="lineMonthMode === 'prev' ? 'primary' : ''" @click="setLineMonth('prev')">上月</el-button>
               <el-button size="small" :type="lineMonthMode === 'current' ? 'primary' : ''" @click="setLineMonth('current')">本月</el-button>
@@ -83,7 +88,7 @@
         </div>
         <div class="time-chart-col">
           <div class="section-time-header">
-            <h4 class="section-title">每月事务</h4>
+            <h4 class="section-title">按月统计</h4>
             <div class="line-month-selector">
               <el-button size="small" :type="yearMode === 'prev' ? 'primary' : ''" @click="setYear('prev')">上年</el-button>
               <el-button size="small" :type="yearMode === 'current' ? 'primary' : ''" @click="setYear('current')">本年</el-button>
@@ -115,7 +120,10 @@ import {
   getStatsOverviewApi, getStatsByPersonApi, exportStatsExcel,
 } from '@/api/statistics'
 import { getTaskListApi } from '@/api/task'
+import { getDeptListApi, getMemberListApi, getOrgTreeApi } from '@/api/organization'
 import type { StatsOverview, PersonStats, Task } from '@/types'
+import type { Department, User, OrgTreeNode } from '@/types'
+import { useUserStore } from '@/stores'
 
 use([CanvasRenderer, BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, DataZoomComponent])
 
@@ -134,7 +142,44 @@ const overview = ref<StatsOverview>({
 })
 const personStats = ref<PersonStats[]>([])
 const allTasks = ref<Task[]>([])
+const allDepts = ref<Department[]>([])
+const allMembers = ref<User[]>([])
+const orgTree = ref<OrgTreeNode[]>([])
+const userStore = useUserStore()
 
+/** 从组织树中提取部门名称的深度优先顺序 */
+function flattenDeptOrder(nodes: OrgTreeNode[]): string[] {
+  const result: string[] = []
+  function walk(list: OrgTreeNode[]) {
+    for (const node of list) {
+      if (node.type === 'dept') {
+        result.push(node.label)
+        if (node.children?.length) walk(node.children)
+      }
+    }
+  }
+  walk(nodes)
+  return result
+}
+
+/** 从组织树中提取人员 ID 的深度优先顺序（按部门→角色→姓名） */
+function flattenMemberOrder(nodes: OrgTreeNode[]): string[] {
+  const result: string[] = []
+  function walk(list: OrgTreeNode[]) {
+    for (const node of list) {
+      if (node.type === 'dept') {
+        // 先收集该部门下的直接成员
+        const members = (node.children || []).filter(c => c.type === 'member')
+        for (const m of members) result.push(m.id)
+        // 然后递归子部门
+        const subDepts = (node.children || []).filter(c => c.type === 'dept')
+        if (subDepts.length) walk(subDepts)
+      }
+    }
+  }
+  walk(nodes)
+  return result
+}
 // ==================== 1. 事务状态卡片 ====================
 const totalAssigned = computed(() => {
   const ov = overview.value
@@ -144,6 +189,10 @@ const totalAssigned = computed(() => {
 function pctStr(val: number) {
   if (!totalAssigned.value) return '0%'
   return (val / totalAssigned.value * 100).toFixed(1) + '%'
+}
+
+function padNum(val: number) {
+  return String(val).padStart(5, '0')
 }
 
 const statusCards = computed(() => [
@@ -173,9 +222,9 @@ function classifyTask(task: Task) {
 
 const urgencyCards = computed(() => {
   const levels = [
-    { level: 'A', label: '紧急重要', color: '#EF4444', bg: '#FEF2F2' },
+    { level: 'A', label: '紧急且重要', color: '#EF4444', bg: '#FEF2F2' },
     { level: 'B', label: '紧急不重要', color: '#F59E0B', bg: '#FFFBEB' },
-    { level: 'C', label: '不紧急重要', color: '#4F6EF7', bg: '#EEF1FE' },
+    { level: 'C', label: '不紧急但重要', color: '#4F6EF7', bg: '#EEF1FE' },
     { level: 'D', label: '不紧急不重要', color: '#22C55E', bg: '#ECFDF5' },
   ]
 
@@ -231,10 +280,16 @@ const STACKED_SERIES = [
 ] as const
 
 const deptData = computed(() => {
+  const zeroStats = { onTimeCompleted: 0, overdueCompleted: 0, failedReview: 0, todoTasks: 0, overdueUnfinished: 0, cancelledTasks: 0 }
   const deptMap = new Map<string, Record<string, number>>()
+  // Initialize all depts with zero counts
+  for (const dept of allDepts.value) {
+    deptMap.set(dept.name, { ...zeroStats })
+  }
+  // Accumulate actual stats
   for (const p of personStats.value) {
     if (!deptMap.has(p.deptName)) {
-      deptMap.set(p.deptName, { onTimeCompleted: 0, overdueCompleted: 0, failedReview: 0, todoTasks: 0, overdueUnfinished: 0, cancelledTasks: 0 })
+      deptMap.set(p.deptName, { ...zeroStats })
     }
     const entry = deptMap.get(p.deptName)!
     entry.onTimeCompleted += p.onTimeCompleted
@@ -244,7 +299,14 @@ const deptData = computed(() => {
     entry.overdueUnfinished += p.overdueUnfinished
     entry.cancelledTasks += p.cancelledTasks
   }
-  return Array.from(deptMap.entries()).map(([name, stats]) => ({ label: name, ...stats }))
+  // 按组织树深度优先顺序排列
+  const treeOrder = flattenDeptOrder(orgTree.value)
+  const ordered = treeOrder.filter(name => deptMap.has(name)).map(name => ({ label: name, ...deptMap.get(name)! }))
+  // 追加树中不存在但 personStats 中存在的部门
+  for (const [name, stats] of deptMap) {
+    if (!treeOrder.includes(name)) ordered.push({ label: name, ...stats })
+  }
+  return ordered
 })
 
 function makeHorizontalStackedOption(source: { label: string; [k: string]: any }[]): EChartsOption {
@@ -281,8 +343,17 @@ function makeHorizontalStackedOption(source: { label: string; [k: string]: any }
     },
     dataZoom: needScroll
       ? [
-          { type: 'slider', yAxisIndex: 0, start: 0, end: endPercent, right: 0, width: 14 },
-          { type: 'inside', yAxisIndex: 0, start: 0, end: endPercent },
+          {
+            type: 'slider', yAxisIndex: 0, start: 0, end: endPercent,
+            right: 0, width: 8, zoomLock: true,
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(0,0,0,0.04)',
+            fillerColor: 'rgba(144,160,183,0.25)',
+            handleStyle: { color: 'rgba(144,160,183,0.4)', borderColor: 'transparent' },
+            handleSize: '100%',
+            brushSelect: false,
+          },
+          { type: 'inside', yAxisIndex: 0, start: 0, end: endPercent, zoomLock: true },
         ]
       : [],
     series: STACKED_SERIES.map(s => ({
@@ -299,17 +370,35 @@ function makeHorizontalStackedOption(source: { label: string; [k: string]: any }
 const deptBarOption = computed<EChartsOption>(() => makeHorizontalStackedOption(deptData.value))
 
 // ==================== 4. 人员柱状堆叠图 ====================
-const personData = computed(() =>
-  personStats.value.map(p => ({
-    label: p.name,
-    onTimeCompleted: p.onTimeCompleted,
-    overdueCompleted: p.overdueCompleted,
-    failedReview: p.failedReview,
-    todoTasks: p.todoTasks,
-    overdueUnfinished: p.overdueUnfinished,
-    cancelledTasks: p.cancelledTasks,
+const personData = computed(() => {
+  const zeroStats = { onTimeCompleted: 0, overdueCompleted: 0, failedReview: 0, todoTasks: 0, overdueUnfinished: 0, cancelledTasks: 0 }
+  const statsMap = new Map<string, typeof zeroStats>()
+  for (const p of personStats.value) {
+    statsMap.set(p.userId, {
+      onTimeCompleted: p.onTimeCompleted,
+      overdueCompleted: p.overdueCompleted,
+      failedReview: p.failedReview,
+      todoTasks: p.todoTasks,
+      overdueUnfinished: p.overdueUnfinished,
+      cancelledTasks: p.cancelledTasks,
+    })
+  }
+  // 排除管理员自己
+  const adminId = userStore.isAdmin ? userStore.userInfo?.id : null
+  const members = allMembers.value.filter(m => m.role !== 'admin' && m.id !== adminId)
+  // 按组织树深度优先顺序排列
+  const treeOrder = flattenMemberOrder(orgTree.value)
+  const orderMap = new Map(treeOrder.map((id, idx) => [id, idx]))
+  const sorted = [...members].sort((a, b) => {
+    const ia = orderMap.get(a.id) ?? 99999
+    const ib = orderMap.get(b.id) ?? 99999
+    return ia - ib
+  })
+  return sorted.map(m => ({
+    label: m.name,
+    ...(statsMap.get(m.id) ?? { ...zeroStats }),
   }))
-)
+})
 
 const personBarOption = computed<EChartsOption>(() => makeHorizontalStackedOption(personData.value))
 
@@ -516,14 +605,20 @@ async function handleExport() {
 onMounted(async () => {
   loading.value = true
   try {
-    const [overviewRes, personRes, taskRes] = await Promise.all([
+    const [overviewRes, personRes, taskRes, deptRes, memberRes, treeRes] = await Promise.all([
       getStatsOverviewApi(),
       getStatsByPersonApi(),
       getTaskListApi({ type: 'scope', page: 1, pageSize: 1000 }),
+      getDeptListApi(),
+      getMemberListApi({ page: 1, pageSize: 9999 }),
+      getOrgTreeApi(),
     ])
     overview.value = overviewRes.data
     personStats.value = personRes.data
     allTasks.value = taskRes.data.list
+    allDepts.value = deptRes.data
+    allMembers.value = memberRes.data.list
+    orgTree.value = treeRes.data
   } finally {
     loading.value = false
   }
@@ -535,9 +630,9 @@ onMounted(async () => {
   height: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto 1fr 1fr;
+  grid-template-rows: auto auto minmax(280px, 1fr) minmax(280px, 1fr);
   gap: $spacing-md;
-  overflow: hidden;
+  overflow-y: auto;
   padding: $spacing-sm 0;
 }
 
@@ -565,38 +660,50 @@ onMounted(async () => {
 
 .stat-card {
   background: color-mix(in srgb, var(--card-color) 12%, $bg-card);
-  border-left: 4px solid var(--card-color);
+  border: 1px dashed var(--card-color);
   border-radius: $radius-sm;
   box-shadow: $shadow-sm;
-  padding: $spacing-md $spacing-md;
+  padding: $spacing-sm $spacing-md;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   transition: box-shadow 0.2s, background 0.2s;
-  white-space: nowrap;
-  min-height: 100px;
+  min-height: 90px;
   &:hover { box-shadow: $shadow-hover; background: color-mix(in srgb, var(--card-color) 18%, $bg-card); }
 
   &--primary {
-    background: linear-gradient(135deg, #4F6EF7 0%, #6583F9 100%);
-    border-left: none;
-    .stat-card__left, .stat-card__right { color: #000; }
-    .stat-card__left strong { color: #000; }
+    background: linear-gradient(135deg, rgba(79,110,247,0.12) 0%, rgba(101,131,249,0.18) 100%);
+    border-color: #4F6EF7;
   }
 
-  &__left {
-    font-size: 15px;
+  &__label {
+    font-size: 13px;
     color: #1a1a1a;
-    font-weight: 500;
-    strong { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-left: 4px; }
+    font-weight: 600;
   }
-  &__right {
+
+  &__body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    border-left: 1px dashed color-mix(in srgb, var(--card-color) 40%, transparent);
+  }
+
+  &__num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Courier New', Courier, monospace;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  &__pct {
     font-size: 15px;
     color: #1a1a1a;
     font-weight: 500;
-    text-align: right;
+    text-align: center;
   }
 }
 
@@ -620,25 +727,43 @@ onMounted(async () => {
 
   &__top {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: $spacing-xs;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: $spacing-md;
   }
 
   &__level {
     font-size: 14px;
     font-weight: 700;
     color: var(--uc-color);
+    white-space: nowrap;
+    padding-top: 2px;
+    margin-right: auto;
   }
 
   &__stats {
     display: flex;
-    flex-wrap: nowrap;
-    gap: 6px 12px;
+    flex-direction: column;
+    gap: 6px;
     font-size: 14px;
     color: #1a1a1a;
     font-weight: 500;
-    strong { color: #1a1a1a; margin-left: 2px; }
+    text-align: right;
+    strong { color: #1a1a1a; margin-left: 4px; font-family: 'Courier New', Courier, monospace; letter-spacing: 1px; }
+  }
+
+  &__stats-row {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0 20px;
+    justify-content: end;
+  }
+
+  &__stat-item {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    justify-content: flex-start;
   }
 
   &__bottom {
@@ -679,6 +804,7 @@ onMounted(async () => {
 
   .chart-card {
     flex: 1;
+    min-height: 240px;
   }
 }
 

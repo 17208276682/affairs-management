@@ -1,7 +1,6 @@
 <template>
   <div class="member-manage">
     <div class="page-header">
-      <h3>人员管理</h3>
       <el-button type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>新增人员
       </el-button>
@@ -21,6 +20,10 @@
               </div>
             </div>
           </template>
+          <div class="all-members-btn" :class="{ active: showAllMode }" @click="handleShowAll">
+            <el-icon><User /></el-icon>
+            <span>所有人员</span>
+          </div>
           <el-tree
             class="no-collapse-tree"
             :data="deptOnlyTree"
@@ -38,18 +41,25 @@
       <el-col :span="18">
         <el-card v-loading="loading" class="list-panel">
           <div class="filter-row">
-            <el-input v-model="nameKeyword" placeholder="按姓名筛选" prefix-icon="Search" clearable style="width: 200px" @change="handleFilterChange" />
-            <el-select v-model="filterDeptId" placeholder="按部门筛选" clearable style="width: 200px" @change="handleFilterChange">
-              <el-option v-for="option in deptSelectOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-            <el-input v-model="positionKeyword" placeholder="按职位筛选" prefix-icon="Search" clearable style="width: 200px" @change="handleFilterChange" />
-            <el-select v-model="roleKeyword" placeholder="按角色筛选" clearable style="width: 170px" @change="handleFilterChange">
-              <el-option label="总经理" value="ceo" />
-              <el-option label="副总经理" value="director" />
-              <el-option label="负责人" value="manager" />
-              <el-option label="普通员工" value="staff" />
-            </el-select>
-            <el-button @click="clearFilters">重置</el-button>
+            <div class="filter-left">
+              <el-input v-model="nameKeyword" placeholder="搜索姓名" prefix-icon="Search" clearable @keyup.enter="handleFilterChange" />
+              <el-select v-model="filterDeptId" placeholder="按部门筛选" clearable @change="handleFilterChange">
+                <el-option v-for="option in deptSelectOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+              <el-select v-model="positionKeyword" placeholder="按职位筛选" clearable @change="handleFilterChange">
+                <el-option v-for="option in positionOptions" :key="option" :label="option" :value="option" />
+              </el-select>
+              <el-select v-model="roleKeyword" placeholder="按角色筛选" clearable @change="handleFilterChange">
+                <el-option label="总经理" value="ceo" />
+                <el-option label="副总经理" value="director" />
+                <el-option label="负责人" value="manager" />
+                <el-option label="普通员工" value="staff" />
+              </el-select>
+            </div>
+            <div class="filter-right">
+              <el-button type="primary" @click="handleFilterChange">搜索</el-button>
+              <el-button @click="clearFilters">重置</el-button>
+            </div>
           </div>
           <div class="table-wrapper">
             <el-table :data="sortedMemberList" stripe class="member-table" table-layout="auto" @sort-change="handleTableSortChange">
@@ -76,15 +86,6 @@
               </template>
               </el-table-column>
             </el-table>
-          </div>
-          <div class="pagination-wrapper">
-            <el-pagination
-              v-model:current-page="page"
-              :total="orgStore.memberTotal"
-              :page-size="pageSize"
-              layout="total, prev, pager, next"
-              @current-change="loadMembers"
-            />
           </div>
         </el-card>
       </el-col>
@@ -190,8 +191,9 @@ const positionKeyword = ref('')
 const roleKeyword = ref('')
 const selectedDeptId = ref('')
 const selectedTreeDeptId = ref('')
+const showAllMode = ref(false)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(9999)
 const sortProp = ref<'name' | 'deptName' | 'role' | ''>('')
 const sortOrder = ref<'ascending' | 'descending' | null>(null)
 
@@ -236,6 +238,12 @@ const deptSelectOptions = computed(() => orgStore.deptList.map(dept => ({
   label: dept.name,
   value: dept.id,
 })))
+
+const positionOptions = computed(() => {
+  const set = new Set<string>()
+  orgStore.memberList.forEach(m => { if (m.position) set.add(m.position) })
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+})
 
 const deptLevelMap = computed<Record<string, number>>(() => {
   return orgStore.deptList.reduce((acc, dept: Department) => {
@@ -332,9 +340,19 @@ const deptOnlyTree = computed<OrgTreeNode[]>(() => {
 
 function handleDeptClick(data: OrgTreeNode) {
   if (data.type !== 'dept') return
+  showAllMode.value = false
   selectedTreeDeptId.value = data.id
   filterDeptId.value = ''
   selectedDeptId.value = data.id
+  page.value = 1
+  loadMembers()
+}
+
+function handleShowAll() {
+  showAllMode.value = true
+  selectedTreeDeptId.value = ''
+  selectedDeptId.value = ''
+  filterDeptId.value = ''
   page.value = 1
   loadMembers()
 }
@@ -367,14 +385,12 @@ async function loadMembers() {
   loading.value = true
   try {
     const deptId = filterDeptId.value || selectedDeptId.value || undefined
-    const showAllMembers = !deptId
-    pageSize.value = showAllMembers ? 9999 : 20
     await orgStore.fetchMemberList({
       deptId,
       keyword: nameKeyword.value || undefined,
       position: positionKeyword.value || undefined,
-      page: showAllMembers ? 1 : page.value,
-      pageSize: pageSize.value,
+      page: 1,
+      pageSize: 9999,
     })
     if (deptId) {
       const currentDept = orgStore.deptList.find(d => d.id === deptId)
@@ -390,7 +406,6 @@ async function loadMembers() {
       orgStore.memberList = [...baseMembers, ...extraManagedTopRoles]
       orgStore.memberTotal = orgStore.memberList.length
     }
-    if (showAllMembers) page.value = 1
   } finally {
     loading.value = false
   }
@@ -608,10 +623,9 @@ onMounted(async () => {
 
   .page-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     margin-bottom: $spacing-sm;
-    h3 { font-size: $font-size-xl; font-weight: 600; margin: 0; }
   }
 }
 
@@ -665,6 +679,39 @@ onMounted(async () => {
   pointer-events: none;
 }
 
+/* 树结构竖线 */
+:deep(.no-collapse-tree) {
+  .el-tree-node {
+    position: relative;
+  }
+
+  .el-tree-node__children > .el-tree-node::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    height: 100%;
+    border-left: 1px solid #dcdfe6;
+  }
+
+  .el-tree-node__children > .el-tree-node::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 20px;
+    width: 12px;
+    border-top: 1px solid #dcdfe6;
+  }
+
+  .el-tree-node__children > .el-tree-node:last-child::before {
+    height: 20px;
+  }
+
+  .el-tree-node__children {
+    padding-left: 12px;
+  }
+}
+
 .list-panel {
   height: 100%;
   :deep(.el-card__body) {
@@ -692,9 +739,26 @@ onMounted(async () => {
 .filter-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
   gap: $spacing-sm;
   margin-bottom: $spacing-sm;
+
+  .filter-left {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+
+    :deep(.el-input),
+    :deep(.el-select) {
+      width: 200px;
+    }
+  }
+
+  .filter-right {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
 }
 
 .password-row {
@@ -704,9 +768,27 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.pagination-wrapper {
+.all-members-btn {
   display: flex;
-  justify-content: flex-end;
-  padding-top: $spacing-sm;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  color: $text-regular;
+  transition: background $transition-fast, color $transition-fast;
+
+  &:hover {
+    background: $bg-hover;
+    color: $primary;
+  }
+
+  &.active {
+    background: rgba($primary, 0.08);
+    color: $primary;
+    font-weight: 500;
+  }
 }
 </style>

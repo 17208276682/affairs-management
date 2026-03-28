@@ -5,7 +5,7 @@
       <!-- Logo -->
       <div class="sidebar-logo" @click="router.push('/dashboard')">
         <el-icon :size="28" color="#4F6EF7"><Monitor /></el-icon>
-        <span v-show="!isCollapsed" class="logo-text">中小企业事务管理数智化系统</span>
+        <span v-show="!isCollapsed" class="logo-text">中小企业<br>事务管理数智化系统</span>
       </div>
 
       <!-- 菜单 -->
@@ -22,8 +22,8 @@
             <template #title>事务总览</template>
           </el-menu-item>
 
-          <!-- 事务列表 — ceo / director / manager / staff -->
-          <el-menu-item v-if="!userStore.isAdmin" index="/task/list/scope">
+          <!-- 事务列表 — manager / staff -->
+          <el-menu-item v-if="!userStore.isAdmin && !userStore.isDirector" index="/task/list/scope">
             <el-icon><Promotion /></el-icon>
             <template #title>事务列表</template>
           </el-menu-item>
@@ -57,6 +57,18 @@
             <el-icon><DataAnalysis /></el-icon>
             <template #title>事务统计</template>
           </el-menu-item>
+
+          <!-- 报表导出 — 管理员 -->
+          <el-menu-item v-if="userStore.isAdmin" index="/report">
+            <el-icon><Document /></el-icon>
+            <template #title>报表导出</template>
+          </el-menu-item>
+
+          <!-- 系统设置 — 管理员 -->
+          <el-menu-item v-if="userStore.isAdmin" index="/settings">
+            <el-icon><Setting /></el-icon>
+            <template #title>系统设置</template>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
     </el-aside>
@@ -74,7 +86,7 @@
           </el-icon>
           <!-- 面包屑 -->
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item v-if="!isOrgPage" :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="!isOrgPage && !isTaskListPage" :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="route.meta.parent && !isOrgPage">
               {{ route.meta.parent }}
             </el-breadcrumb-item>
@@ -144,6 +156,7 @@ const currentRouteTitle = computed(() => {
 })
 
 const isOrgPage = computed(() => route.path.startsWith('/org/'))
+const isTaskListPage = computed(() => route.path.startsWith('/task/list/') || route.path === '/dashboard' || route.path === '/statistics')
 const displayUserName = computed(() => userStore.currentRole === 'admin' ? '管理员' : (userStore.userInfo?.name || ''))
 const displayUserRole = computed(() => userStore.currentRole === 'admin' ? '' : userStore.displayRole)
 const viewRenderKey = computed(() => route.fullPath)
@@ -171,7 +184,8 @@ function handleUserCommand(cmd: string) {
   overflow: hidden;
 
   .sidebar-logo {
-    height: $header-height;
+    min-height: $header-height;
+    height: auto;
     display: flex;
     align-items: center;
     padding: 0 16px;
@@ -180,10 +194,10 @@ function handleUserCommand(cmd: string) {
     border-bottom: 1px solid $border-lighter;
 
     .logo-text {
-      font-size: 13px;
+      font-size: 16px;
       font-weight: 600;
       color: $text-primary;
-      white-space: nowrap;
+      line-height: 1.4;
     }
   }
 }

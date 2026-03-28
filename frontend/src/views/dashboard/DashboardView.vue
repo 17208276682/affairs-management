@@ -88,7 +88,6 @@
 
               <div v-if="displayedActivities.length" class="activity-list">
                 <div v-for="activity in displayedActivities" :key="activity.id" class="activity-item">
-                  <span class="activity-icon" :class="`type-${activity.type}`"></span>
                   <div class="activity-content">
                     <span class="activity-text">{{ activity.content }}</span>
                     <span class="activity-time">{{ formatRelativeTime(activity.time) }}</span>
@@ -343,7 +342,7 @@
                           <span class="month-task-dot" :style="{ background: getTaskStatusColor(task) }"></span>
                           <span class="month-task-text">{{ (task.description || task.title).substring(0, 4) }}</span>
                         </div>
-                        <span v-if="cell.tasks.length > 4" class="month-task-more">+{{ cell.tasks.length - 4 }}</span>
+                        <span v-if="cell.tasks.length > 4" class="month-task-more">更多 +{{ cell.tasks.length - 4 }}</span>
                       </div>
                     </div>
                   </el-tooltip>
@@ -509,6 +508,7 @@ const panelConfig = computed(() => {
       pieTitle: '事务级别',
       barTitle: '人员事务状态分布',
       statuses: [
+        { key: 'assigned', label: '下达事务数', color: '#4F6EF7', glow: 'rgba(79, 110, 247, 0.16)', note: '下达给下级\n人员的总数' },
         { key: 'onTimeCompleted', label: '按时完成数', color: '#4dbb87', glow: 'rgba(77, 187, 135, 0.18)', note: '按时完成并审\n核通过的事务' },
         { key: 'overdueCompleted', label: '逾期完成数', color: '#f3a64b', glow: 'rgba(243, 166, 75, 0.18)', note: '逾期完成并审\n核通过的事务' },
         { key: 'failedReview', label: '审核未通过', color: '#e06472', glow: 'rgba(224, 100, 114, 0.16)', note: '按时或逾期的\n未通过的事务' },
@@ -1397,6 +1397,10 @@ onBeforeUnmount(() => {
   &.count-6 {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+
+  &.count-7 {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
 }
 
 .panel-status-group {
@@ -1651,9 +1655,7 @@ onBeforeUnmount(() => {
 }
 
 .activity-item {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 12px;
+  display: block;
   padding: 12px;
   border-radius: 18px;
   background: linear-gradient(135deg, #fcfdff 0%, #f7f9fd 100%);
@@ -1748,7 +1750,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 118px;
+  grid-template-columns: minmax(0, 1fr) 150px;
   gap: 8px;
   align-items: center;
 }
@@ -1794,6 +1796,7 @@ onBeforeUnmount(() => {
 .pie-legend__label {
   color: #6f8097;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .chart-bar {
@@ -2487,7 +2490,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .panel-status-row.count-5,
-  .panel-status-row.count-6 {
+  .panel-status-row.count-6,
+  .panel-status-row.count-7 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -2508,6 +2512,7 @@ onBeforeUnmount(() => {
 
   .panel-status-row.count-5,
   .panel-status-row.count-6,
+  .panel-status-row.count-7,
   .quadrant-grid,
   .time-grid-head,
   .time-row {

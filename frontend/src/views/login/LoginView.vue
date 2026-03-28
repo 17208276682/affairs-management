@@ -8,43 +8,70 @@
             <span>事务管理数智化系统</span>
           </h1>
           <div class="brand-keywords">
-            <span class="keyword-tag">事务列表</span>
-            <span class="keyword-tag">事务下达</span>
-            <span class="keyword-tag">事务代办</span>
-            <span class="keyword-tag">事务统计</span>
+            <span class="keyword-tag">轻量易用</span>
             <span class="keyword-tag">组织管理</span>
+            <span class="keyword-tag">高效协同</span>
+            <span class="keyword-tag">数据可视</span>
+            <span class="keyword-tag">及时触达</span>
           </div>
         </div>
 
-        <div class="brand-scene" aria-hidden="true">
-          <div class="scene-glow glow-a"></div>
-          <div class="scene-glow glow-b"></div>
-          <div class="scene-grid"></div>
-          <div class="scene-card scene-card-main">
-            <div class="scene-card-header">
-              <span class="scene-pill pill-blue">智能分派</span>
-              <span class="scene-pill pill-coral">轻量协同</span>
-            </div>
-            <div class="scene-bars">
-              <span style="--h: 42%"></span>
-              <span style="--h: 72%"></span>
-              <span style="--h: 54%"></span>
-              <span style="--h: 86%"></span>
-            </div>
-            <div class="scene-lines">
-              <span></span>
-              <span></span>
-              <span></span>
+        <div class="brand-illustrations">
+          <!-- 卡片1: 协作平台 -->
+          <div class="illus-card illus-card--hero">
+            <div class="illus-hero-bg">
+              <div class="illus-hero-title">协作平台</div>
+              <div class="illus-hero-sub">协作进度</div>
+              <div class="illus-progress">
+                <div class="illus-progress-bar"></div>
+              </div>
+              <div class="illus-hero-shapes">
+                <div class="illus-cube"></div>
+                <div class="illus-ring"></div>
+              </div>
             </div>
           </div>
-          <div class="scene-card scene-card-float">
-            <div class="orbit orbit-a"></div>
-            <div class="orbit orbit-b"></div>
-            <div class="signal signal-a"></div>
-            <div class="signal signal-b"></div>
+          <!-- 卡片2: 组织管理 -->
+          <div class="illus-card illus-card--org">
+            <div class="illus-org-scene">
+              <div class="illus-platform"></div>
+              <div class="illus-doc-card">
+                <div class="illus-avatar-circle"></div>
+                <div class="illus-doc-lines">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+              <div class="illus-node illus-node--a"></div>
+              <div class="illus-node illus-node--b"></div>
+            </div>
           </div>
-          <div class="scene-badge badge-top">实时状态</div>
-          <div class="scene-badge badge-bottom">流程协同</div>
+          <!-- 卡片3: 高效协同 -->
+          <div class="illus-card illus-card--chart-line">
+            <div class="illus-chart-header">
+              <span class="illus-chart-title">高效协同</span>
+            </div>
+            <svg class="illus-line-svg" viewBox="0 0 280 100" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="lineGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(77,124,254,0.25)" />
+                  <stop offset="100%" stop-color="rgba(77,124,254,0)" />
+                </linearGradient>
+              </defs>
+              <path d="M0,70 Q30,60 60,45 T120,35 T180,20 T240,30 T280,25" fill="none" stroke="#4D7CFE" stroke-width="2.5"/>
+              <path d="M0,70 Q30,60 60,45 T120,35 T180,20 T240,30 T280,25 L280,100 L0,100 Z" fill="url(#lineGrad)"/>
+            </svg>
+          </div>
+          <!-- 卡片4: 数据可视 -->
+          <div class="illus-card illus-card--chart-bar">
+            <div class="illus-chart-header">
+              <span class="illus-chart-title">数据可视</span>
+            </div>
+            <div class="illus-bars">
+              <div class="illus-bar-group" v-for="h in [55, 70, 48, 82, 62, 75, 45, 68]" :key="h">
+                <span class="illus-bar" :style="{ height: h + '%' }"></span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -385,7 +412,7 @@ async function handleResetPassword() {
   padding: 56px 54px 44px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 32px;
   background:
     linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(245, 250, 255, 0.78)),
     linear-gradient(135deg, #edf5ff 0%, #fff7f3 100%);
@@ -426,196 +453,224 @@ async function handleResetPassword() {
   }
 }
 
-.brand-scene {
-  position: relative;
-  min-height: 360px;
-  border-radius: 28px;
-  overflow: hidden;
-  background:
-    linear-gradient(145deg, rgba(235, 245, 255, 0.95), rgba(255, 244, 239, 0.92)),
-    linear-gradient(180deg, #fefefe 0%, #eef4ff 100%);
-  border: 1px solid rgba(196, 213, 239, 0.6);
-}
-
-.scene-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(111, 150, 214, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(111, 150, 214, 0.08) 1px, transparent 1px);
-  background-size: 34px 34px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 88%);
-}
-
-.scene-glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(18px);
-  opacity: 0.85;
-}
-
-.glow-a {
-  width: 180px;
-  height: 180px;
-  top: 32px;
-  left: 32px;
-  background: rgba(134, 175, 255, 0.4);
-}
-
-.glow-b {
-  width: 220px;
-  height: 220px;
-  right: 30px;
-  bottom: 24px;
-  background: rgba(255, 190, 156, 0.4);
-}
-
-.scene-card {
-  position: absolute;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 18px 40px rgba(142, 166, 196, 0.18);
-  backdrop-filter: blur(16px);
-}
-
-.scene-card-main {
-  left: 56px;
-  right: 160px;
-  top: 58px;
-  bottom: 54px;
-  padding: 26px;
-}
-
-.scene-card-header {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
-}
-
-.scene-pill {
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pill-blue {
-  color: #3768e5;
-  background: rgba(77, 124, 254, 0.12);
-}
-
-.pill-coral {
-  color: #d96c4f;
-  background: rgba(255, 154, 126, 0.15);
-}
-
-.scene-bars {
-  height: 148px;
+.brand-illustrations {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  align-items: end;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   gap: 14px;
-  margin-bottom: 24px;
-
-  span {
-    height: var(--h);
-    border-radius: 18px 18px 8px 8px;
-    background: linear-gradient(180deg, #6f9cff 0%, #92d5ff 100%);
-    animation: rise-in 0.9s ease both;
-  }
-
-  span:nth-child(2) {
-    background: linear-gradient(180deg, #ffb49d 0%, #ffd2ab 100%);
-    animation-delay: 0.08s;
-  }
-
-  span:nth-child(3) {
-    animation-delay: 0.16s;
-  }
-
-  span:nth-child(4) {
-    background: linear-gradient(180deg, #8fd3c9 0%, #b7ead7 100%);
-    animation-delay: 0.24s;
-  }
+  flex: 1;
+  min-height: 300px;
 }
 
-.scene-lines {
-  display: grid;
-  gap: 12px;
-
-  span {
-    height: 10px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(89, 130, 223, 0.2), rgba(89, 130, 223, 0.05));
-  }
-
-  span:nth-child(1) { width: 82%; }
-  span:nth-child(2) { width: 68%; }
-  span:nth-child(3) { width: 54%; }
+.illus-card {
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
 }
 
-.scene-card-float {
-  width: 190px;
-  height: 190px;
-  right: 44px;
-  top: 110px;
+/* ---- Card 1: Hero / 协作平台 ---- */
+.illus-card--hero {
+  background: linear-gradient(135deg, #4D7CFE 0%, #5B9BFF 100%);
 }
 
-.orbit {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(93, 136, 226, 0.18);
+.illus-hero-bg {
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
 }
 
-.orbit-a {
-  inset: 24px;
+.illus-hero-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
 }
 
-.orbit-b {
-  inset: 52px;
-}
-
-.signal {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #7eb2ff 0%, #4e7ef4 100%);
-  box-shadow: 0 0 0 8px rgba(110, 155, 255, 0.12);
-}
-
-.signal-a {
-  top: 36px;
-  left: 92px;
-}
-
-.signal-b {
-  right: 42px;
-  bottom: 48px;
-  background: linear-gradient(180deg, #ffba9e 0%, #ff8c7f 100%);
-  box-shadow: 0 0 0 8px rgba(255, 177, 157, 0.15);
-}
-
-.scene-badge {
-  position: absolute;
-  padding: 10px 16px;
-  border-radius: 999px;
+.illus-hero-sub {
   font-size: 13px;
-  font-weight: 600;
-  color: #44617f;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 12px;
 }
 
-.badge-top {
-  top: 28px;
-  right: 30px;
+.illus-progress {
+  width: 65%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
 }
 
-.badge-bottom {
-  left: 34px;
-  bottom: 26px;
+.illus-progress-bar {
+  width: 68%;
+  height: 100%;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.illus-hero-shapes {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+}
+
+.illus-cube {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  transform: rotate(-12deg);
+}
+
+.illus-ring {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  position: absolute;
+  right: -8px;
+  top: -18px;
+}
+
+/* ---- Card 2: 组织管理 ---- */
+.illus-card--org {
+  background: linear-gradient(145deg, #f1f5ff 0%, #f8f9ff 100%);
+  border: 1px solid rgba(196, 213, 239, 0.5);
+}
+
+.illus-org-scene {
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.illus-platform {
+  width: 100px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c8d8f8 0%, #e0ebff 100%);
+  position: absolute;
+  bottom: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.illus-doc-card {
+  width: 80px;
+  height: 96px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(100, 130, 180, 0.15);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+.illus-avatar-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a8c4ff 0%, #89b0ff 100%);
+}
+
+.illus-doc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  span {
+    height: 6px;
+    border-radius: 999px;
+    background: #e4ecf8;
+    &:nth-child(1) { width: 90%; }
+    &:nth-child(2) { width: 70%; }
+    &:nth-child(3) { width: 55%; }
+  }
+}
+
+.illus-node {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  &--a {
+    background: #4D7CFE;
+    top: 22%;
+    right: 20%;
+    box-shadow: 0 0 0 6px rgba(77, 124, 254, 0.12);
+  }
+  &--b {
+    background: #6DD5C8;
+    bottom: 20%;
+    left: 18%;
+    box-shadow: 0 0 0 6px rgba(109, 213, 200, 0.15);
+  }
+}
+
+/* ---- Card 3: 高效协同 (line chart) ---- */
+.illus-card--chart-line {
+  background: #fff;
+  border: 1px solid rgba(196, 213, 239, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.illus-chart-header {
+  padding: 16px 18px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.illus-chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #20304d;
+}
+
+.illus-line-svg {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+/* ---- Card 4: 数据可视 (bar chart) ---- */
+.illus-card--chart-bar {
+  background: #fff;
+  border: 1px solid rgba(196, 213, 239, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.illus-bars {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: end;
+  gap: 8px;
+  padding: 0 18px 16px;
+}
+
+.illus-bar-group {
+  height: 100%;
+  display: flex;
+  align-items: end;
+}
+
+.illus-bar {
+  width: 100%;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #4D7CFE 0%, #7EB2FF 100%);
+  animation: rise-in 0.8s ease both;
+  &:nth-child(odd) { opacity: 0.8; }
 }
 
 .login-panel {
@@ -743,6 +798,10 @@ async function handleResetPassword() {
     min-height: 420px;
     padding-bottom: 24px;
   }
+
+  .brand-illustrations {
+    min-height: 240px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -770,23 +829,9 @@ async function handleResetPassword() {
     }
   }
 
-  .brand-scene {
-    min-height: 260px;
-  }
-
-  .scene-card-main {
-    left: 20px;
-    right: 96px;
-    top: 24px;
-    bottom: 24px;
-    padding: 18px;
-  }
-
-  .scene-card-float {
-    width: 110px;
-    height: 110px;
-    right: 18px;
-    top: 74px;
+  .brand-illustrations {
+    min-height: 200px;
+    gap: 10px;
   }
 
   .login-panel {
